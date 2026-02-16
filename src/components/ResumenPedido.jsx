@@ -1,0 +1,46 @@
+import { ShoppingCart, TrendingDown } from 'lucide-react';
+
+export default function ResumenPedido({ totales, onCrearPedido, disabled }) {
+  const { totalProductos, subtotal, ahorro, iva, total } = totales;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-50 no-print">
+      <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm">
+            <div className="flex items-center gap-1.5">
+              <ShoppingCart className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-600">Productos:</span>
+              <span className="font-bold text-gray-900">{totalProductos}</span>
+            </div>
+            <div>
+              <span className="text-gray-600">Subtotal: </span>
+              <span className="font-bold text-gray-900">{subtotal.toFixed(2)} €</span>
+            </div>
+            {ahorro > 0 && (
+              <div className="flex items-center gap-1.5">
+                <TrendingDown className="w-4 h-4 text-green-500" />
+                <span className="text-green-600 font-bold">Ahorro: {ahorro.toFixed(2)} €</span>
+              </div>
+            )}
+            <div>
+              <span className="text-gray-600">IVA (21%): </span>
+              <span className="font-semibold text-gray-700">{iva.toFixed(2)} €</span>
+            </div>
+            <div className="text-lg">
+              <span className="text-gray-600">TOTAL: </span>
+              <span className="font-black text-blue-600">{total.toFixed(2)} €</span>
+            </div>
+          </div>
+          <button
+            onClick={onCrearPedido}
+            disabled={disabled}
+            className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed text-sm sm:text-base whitespace-nowrap cursor-pointer"
+          >
+            CREAR PEDIDO
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
