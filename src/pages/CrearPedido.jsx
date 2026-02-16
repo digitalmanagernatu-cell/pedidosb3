@@ -1,16 +1,17 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Check, X } from 'lucide-react';
-import productos from '../data/productos.json';
+import { Settings, Check } from 'lucide-react';
+import { getProductos } from '../services/productosService';
 import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
-import { calcularPrecioUnitario, calcularAhorro } from '../services/preciosService';
+import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1 } from '../services/preciosService';
 import { guardarPedido } from '../services/pedidosService';
 
 export default function CrearPedido() {
   const navigate = useNavigate();
+  const [productos] = useState(() => getProductos());
   const [codigoCliente, setCodigoCliente] = useState('');
-  const [cif, setCif] = useState('');
+  const [nombreCliente, setNombreCliente] = useState('');
   const [zona, setZona] = useState('');
   const [seleccion, setSeleccion] = useState({});
   const [modal, setModal] = useState(null);
@@ -31,24 +32,22 @@ export default function CrearPedido() {
       totalProductos++;
     });
 
-    const iva = subtotal * 0.21;
-    const total = subtotal + iva;
+    const descuento2x1 = calcularDescuento2x1(seleccion, productos);
+    const subtotalNeto = subtotal - descuento2x1;
+    const iva = subtotalNeto * 0.21;
+    const total = subtotalNeto + iva;
 
-    return { totalProductos, subtotal, ahorro, iva, total };
-  }, [seleccion]);
+    return { totalProductos, subtotal: subtotalNeto, ahorro, descuento2x1, iva, total };
+  }, [seleccion, productos]);
 
   const validar = useCallback(() => {
     const errs = {};
-    if (!codigoCliente.trim()) errs.codigoCliente = 'El código de cliente es obligatorio';
-    if (!cif.trim()) {
-      errs.cif = 'El CIF/NIF es obligatorio';
-    } else if (!/^[A-Za-z]\d{7,8}[A-Za-z0-9]?$/.test(cif.trim()) && !/^\d{8}[A-Za-z]$/.test(cif.trim())) {
-      errs.cif = 'Formato de CIF/NIF no válido';
-    }
+    if (!codigoCliente.trim()) errs.codigoCliente = 'El código de cliente o CIF/NIF es obligatorio';
+    if (!nombreCliente.trim()) errs.nombreCliente = 'El nombre del cliente es obligatorio';
     if (!zona.trim()) errs.zona = 'La zona es obligatoria';
     if (totales.totalProductos === 0) errs.productos = 'Selecciona al menos un producto';
     return errs;
-  }, [codigoCliente, cif, zona, totales.totalProductos]);
+  }, [codigoCliente, nombreCliente, zona, totales.totalProductos]);
 
   const handleCrearPedido = () => {
     const errs = validar();
@@ -67,18 +66,20 @@ export default function CrearPedido() {
         cantidad,
         precio_unitario: precioUnitario,
         subtotal: precioUnitario * cantidad,
-        tiene_escalado: calcularAhorro(producto, cantidad) > 0
+        tiene_escalado: calcularAhorro(producto, cantidad) > 0,
+        tiene_promo_2x1: !!producto.oferta
       });
     });
 
     const pedido = guardarPedido({
       codigo_cliente: codigoCliente.trim(),
-      cif: cif.trim().toUpperCase(),
+      nombre_cliente: nombreCliente.trim(),
       zona: zona.trim(),
       lineas,
       totales: {
         subtotal: totales.subtotal,
         ahorro: totales.ahorro,
+        descuento_2x1: totales.descuento2x1,
         iva: totales.iva,
         total: totales.total
       }
@@ -90,7 +91,7 @@ export default function CrearPedido() {
   const cerrarModal = () => {
     setModal(null);
     setCodigoCliente('');
-    setCif('');
+    setNombreCliente('');
     setZona('');
     setSeleccion({});
     setErrores({});
@@ -118,26 +119,26 @@ export default function CrearPedido() {
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Datos del cliente</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Código de Cliente *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Código de Cliente o CIF/NIF *</label>
               <input
                 type="text"
                 value={codigoCliente}
                 onChange={(e) => setCodigoCliente(e.target.value)}
-                placeholder="Ej: FARM001"
+                placeholder="Ej: FARM001 o B12345678"
                 className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${errores.codigoCliente ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
               />
               {errores.codigoCliente && <p className="text-red-500 text-xs mt-1">{errores.codigoCliente}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CIF/NIF *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Cliente *</label>
               <input
                 type="text"
-                value={cif}
-                onChange={(e) => setCif(e.target.value)}
-                placeholder="Ej: B12345678"
-                className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${errores.cif ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
+                value={nombreCliente}
+                onChange={(e) => setNombreCliente(e.target.value)}
+                placeholder="Ej: Farmacia Central"
+                className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${errores.nombreCliente ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
               />
-              {errores.cif && <p className="text-red-500 text-xs mt-1">{errores.cif}</p>}
+              {errores.nombreCliente && <p className="text-red-500 text-xs mt-1">{errores.nombreCliente}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Código de Zona *</label>
@@ -145,7 +146,7 @@ export default function CrearPedido() {
                 type="text"
                 value={zona}
                 onChange={(e) => setZona(e.target.value)}
-                placeholder="Ej: MURCIA"
+                placeholder="Ej: FAR001"
                 className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${errores.zona ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
               />
               {errores.zona && <p className="text-red-500 text-xs mt-1">{errores.zona}</p>}

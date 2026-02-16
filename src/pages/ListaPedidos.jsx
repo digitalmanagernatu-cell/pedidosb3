@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Eye, Search } from 'lucide-react';
-import { getPedidos, getEstadisticas } from '../services/pedidosService';
+import { LogOut, Eye, Search, Trash2, Upload } from 'lucide-react';
+import { getPedidos, getEstadisticas, eliminarPedido } from '../services/pedidosService';
 import { getUsuario, logout } from '../services/authService';
+import { setProductos } from '../services/productosService';
+import { parseTarifaExcel } from '../services/tarifaParser';
 import EstadisticasAdmin from '../components/EstadisticasAdmin';
 
 function formatFecha(iso) {
@@ -15,18 +17,24 @@ export default function ListaPedidos() {
   const navigate = useNavigate();
   const usuario = getUsuario();
   const [filtro, setFiltro] = useState('');
+  const [version, setVersion] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [uploadMsg, setUploadMsg] = useState(null);
+  const fileInputRef = useRef(null);
 
   const pedidos = useMemo(() => {
     return getPedidos().sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
-  const stats = useMemo(() => getEstadisticas(), []);
+  const stats = useMemo(() => getEstadisticas(), [version]);
 
   const pedidosFiltrados = useMemo(() => {
     if (!filtro.trim()) return pedidos;
     const t = filtro.toLowerCase();
     return pedidos.filter(p =>
       p.codigo_cliente?.toLowerCase().includes(t) ||
+      p.nombre_cliente?.toLowerCase().includes(t) ||
       p.cif?.toLowerCase().includes(t) ||
       p.zona?.toLowerCase().includes(t) ||
       String(p.id).includes(t)
@@ -38,25 +46,57 @@ export default function ListaPedidos() {
     navigate('/');
   };
 
+  const handleEliminar = (id) => {
+    eliminarPedido(id);
+    setConfirmDelete(null);
+    setVersion(v => v + 1);
+  };
+
+  const handleUploadTarifa = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const productos = parseTarifaExcel(buffer);
+
+      if (productos.length === 0) {
+        setUploadMsg({ tipo: 'error', texto: 'No se encontraron productos en el archivo.' });
+        return;
+      }
+
+      setProductos(productos);
+      setUploadMsg({ tipo: 'ok', texto: `Tarifa actualizada: ${productos.length} productos cargados. Recarga la página de pedidos para ver los cambios.` });
+    } catch (err) {
+      setUploadMsg({ tipo: 'error', texto: `Error al procesar el archivo: ${err.message}` });
+    }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handlePrint = (pedido) => {
-    const win = window.open('', '_blank');
     const lineasHTML = pedido.lineas.map(l => `
       <tr>
         <td style="padding:6px;border-bottom:1px solid #eee;font-family:monospace;font-size:12px">${l.codigo}</td>
-        <td style="padding:6px;border-bottom:1px solid #eee">${l.referencia} ${l.tiene_escalado ? '<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;font-size:11px">ESCALADO</span>' : ''}</td>
+        <td style="padding:6px;border-bottom:1px solid #eee">${l.referencia} ${l.tiene_escalado ? '<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;font-size:11px">ESCALADO</span>' : ''} ${l.tiene_promo_2x1 ? '<span style="background:#ffedd5;color:#c2410c;padding:2px 8px;border-radius:12px;font-size:11px">2X1</span>' : ''}</td>
         <td style="padding:6px;border-bottom:1px solid #eee;text-align:center">${l.cantidad}</td>
         <td style="padding:6px;border-bottom:1px solid #eee;text-align:right">${l.precio_unitario.toFixed(2)} &euro;</td>
         <td style="padding:6px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${l.subtotal.toFixed(2)} &euro;</td>
       </tr>
     `).join('');
 
+    const nombreDisplay = pedido.nombre_cliente || pedido.codigo_cliente;
+    const idDisplay = pedido.nombre_cliente ? pedido.codigo_cliente : (pedido.cif || '');
+
+    const win = window.open('', '_blank');
     win.document.write(`<!DOCTYPE html><html><head><title>Pedido #${pedido.id}</title></head><body style="font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:20px">
       <h1 style="color:#2563eb;margin-bottom:4px">Betrés ON</h1>
       <h2 style="color:#666;font-weight:400;margin-top:0">Pedido #${pedido.id}</h2>
       <div style="display:flex;gap:40px;margin:20px 0;padding:16px;background:#f9fafb;border-radius:8px">
         <div><strong>Fecha:</strong> ${formatFecha(pedido.fecha)}</div>
-        <div><strong>Cliente:</strong> ${pedido.codigo_cliente}</div>
-        <div><strong>CIF:</strong> ${pedido.cif}</div>
+        <div><strong>Cliente:</strong> ${nombreDisplay}</div>
+        <div><strong>ID/CIF:</strong> ${idDisplay}</div>
         <div><strong>Zona:</strong> ${pedido.zona}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -71,7 +111,8 @@ export default function ListaPedidos() {
       </table>
       <div style="margin-top:20px;text-align:right;font-size:15px;line-height:2">
         <div>Subtotal: <strong>${pedido.totales.subtotal.toFixed(2)} &euro;</strong></div>
-        ${pedido.totales.ahorro > 0 ? `<div style="color:#16a34a">Ahorro: <strong>${pedido.totales.ahorro.toFixed(2)} &euro;</strong></div>` : ''}
+        ${pedido.totales.ahorro > 0 ? `<div style="color:#16a34a">Ahorro escalado: <strong>${pedido.totales.ahorro.toFixed(2)} &euro;</strong></div>` : ''}
+        ${(pedido.totales.descuento_2x1 || 0) > 0 ? `<div style="color:#c2410c">Promo 2x1: <strong>-${pedido.totales.descuento_2x1.toFixed(2)} &euro;</strong></div>` : ''}
         <div>IVA (21%): <strong>${pedido.totales.iva.toFixed(2)} &euro;</strong></div>
         <div style="font-size:20px;margin-top:8px;border-top:2px solid #2563eb;padding-top:8px">TOTAL: <strong style="color:#2563eb">${pedido.totales.total.toFixed(2)} &euro;</strong></div>
       </div>
@@ -103,6 +144,38 @@ export default function ListaPedidos() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         <EstadisticasAdmin stats={stats} />
 
+        {/* Tariff upload section */}
+        <div className="bg-white rounded-lg shadow-md p-5 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">Gestión de Tarifa</h2>
+              <p className="text-sm text-gray-500 mt-1">Sube un archivo Excel (.xlsx) con la nueva tarifa de productos</p>
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleUploadTarifa}
+                className="hidden"
+                id="tarifa-upload"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer text-sm"
+              >
+                <Upload className="w-4 h-4" />
+                Subir Nueva Tarifa
+              </button>
+            </div>
+          </div>
+          {uploadMsg && (
+            <div className={`mt-3 p-3 rounded-lg text-sm ${uploadMsg.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {uploadMsg.texto}
+            </div>
+          )}
+        </div>
+
         <div className="bg-white rounded-lg shadow-md p-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <h2 className="text-lg font-semibold text-gray-800">Pedidos</h2>
@@ -110,7 +183,7 @@ export default function ListaPedidos() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="Buscar por cliente, CIF, zona..."
+                placeholder="Buscar por cliente, nombre, zona..."
                 value={filtro}
                 onChange={(e) => setFiltro(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
@@ -129,8 +202,8 @@ export default function ListaPedidos() {
                   <tr className="bg-gray-50 text-left">
                     <th className="px-3 py-3 font-semibold text-gray-700">ID</th>
                     <th className="px-3 py-3 font-semibold text-gray-700">Fecha</th>
-                    <th className="px-3 py-3 font-semibold text-gray-700">Cliente</th>
-                    <th className="px-3 py-3 font-semibold text-gray-700">CIF</th>
+                    <th className="px-3 py-3 font-semibold text-gray-700">ID/CIF</th>
+                    <th className="px-3 py-3 font-semibold text-gray-700">Nombre</th>
                     <th className="px-3 py-3 font-semibold text-gray-700">Zona</th>
                     <th className="px-3 py-3 font-semibold text-gray-700 text-center">Productos</th>
                     <th className="px-3 py-3 font-semibold text-gray-700 text-right">Total</th>
@@ -142,25 +215,34 @@ export default function ListaPedidos() {
                     <tr key={pedido.id} className={`border-t border-gray-100 hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                       <td className="px-3 py-2.5 font-mono text-xs text-gray-600">#{pedido.id}</td>
                       <td className="px-3 py-2.5 text-gray-700">{formatFecha(pedido.fecha)}</td>
-                      <td className="px-3 py-2.5 font-medium text-gray-900">{pedido.codigo_cliente}</td>
-                      <td className="px-3 py-2.5 text-gray-600">{pedido.cif}</td>
+                      <td className="px-3 py-2.5 font-medium text-gray-900">
+                        {pedido.codigo_cliente}
+                        {pedido.cif && !pedido.nombre_cliente && <span className="text-gray-500 text-xs ml-1">({pedido.cif})</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-600">{pedido.nombre_cliente || '—'}</td>
                       <td className="px-3 py-2.5 text-gray-600">{pedido.zona}</td>
                       <td className="px-3 py-2.5 text-center">{pedido.lineas?.length || 0}</td>
                       <td className="px-3 py-2.5 text-right font-bold text-gray-900">{pedido.totales?.total?.toFixed(2)} €</td>
                       <td className="px-3 py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => navigate(`/admin/pedido/${pedido.id}`)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors cursor-pointer"
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             Ver
                           </button>
                           <button
                             onClick={() => handlePrint(pedido)}
-                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer"
+                            className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer"
                           >
                             PDF
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(pedido.id)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -172,6 +254,35 @@ export default function ListaPedidos() {
           )}
         </div>
       </main>
+
+      {/* Confirm delete modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 text-center">
+            <div className="mx-auto w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <Trash2 className="w-7 h-7 text-red-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar pedido</h3>
+            <p className="text-gray-600 text-sm mb-5">
+              ¿Estás seguro de que quieres eliminar el pedido <span className="font-mono font-bold">#{confirmDelete}</span>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-5 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleEliminar(confirmDelete)}
+                className="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
