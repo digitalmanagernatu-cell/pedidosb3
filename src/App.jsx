@@ -7,7 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/pedidosb3">
       <Routes>
         <Route path="/" element={<CrearPedido />} />
         <Route path="/login" element={<Login />} />
