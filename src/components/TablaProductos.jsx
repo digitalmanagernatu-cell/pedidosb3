@@ -13,6 +13,21 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
     );
   }, [productos, busqueda]);
 
+  const productosAgrupados = useMemo(() => {
+    const grupos = [];
+    let categoriaActual = null;
+
+    productosFiltrados.forEach(producto => {
+      if (producto.categoria !== categoriaActual) {
+        categoriaActual = producto.categoria;
+        grupos.push({ tipo: 'categoria', nombre: categoriaActual });
+      }
+      grupos.push({ tipo: 'producto', data: producto });
+    });
+
+    return grupos;
+  }, [productosFiltrados]);
+
   const handleCheck = (codigo, checked) => {
     const nuevo = { ...seleccion };
     if (checked) {
@@ -58,12 +73,24 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
               <th className="px-3 py-3 font-semibold text-gray-700">Código</th>
               <th className="px-3 py-3 font-semibold text-gray-700">Producto</th>
               <th className="px-3 py-3 font-semibold text-gray-700 text-center">Cantidad</th>
-              <th className="px-3 py-3 font-semibold text-gray-700 text-right">Precio Unit.</th>
+              <th className="px-3 py-3 font-semibold text-gray-700 text-right">PVL</th>
+              <th className="px-3 py-3 font-semibold text-gray-700 text-right">PVP Rec.</th>
               <th className="px-3 py-3 font-semibold text-gray-700 text-right">Subtotal</th>
             </tr>
           </thead>
           <tbody>
-            {productosFiltrados.map((producto, idx) => {
+            {productosAgrupados.map((item, idx) => {
+              if (item.tipo === 'categoria') {
+                return (
+                  <tr key={`cat-${item.nombre}`} className="bg-blue-600">
+                    <td colSpan={7} className="px-4 py-2 font-bold text-white text-sm tracking-wide">
+                      {item.nombre}
+                    </td>
+                  </tr>
+                );
+              }
+
+              const producto = item.data;
               const sel = seleccion[producto.codigo];
               const isChecked = !!sel?.checked;
               const cantidad = sel?.cantidad || 0;
@@ -94,6 +121,11 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                           ESCALADO
                         </span>
                       )}
+                      {producto.oferta && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                          {producto.oferta}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center">
@@ -110,6 +142,9 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                     <span className={ahorro > 0 ? 'text-green-600 font-semibold' : 'text-gray-700'}>
                       {precioUnit.toFixed(2)} €
                     </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-gray-500">
+                    {producto.pvpRec ? `${producto.pvpRec.toFixed(2)} €` : '—'}
                   </td>
                   <td className="px-3 py-2.5 text-right font-semibold text-gray-900">
                     {isChecked ? `${subtotal.toFixed(2)} €` : '—'}

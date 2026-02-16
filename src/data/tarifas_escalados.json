@@ -1,5 +1,5 @@
 {
-  "GELES DE BAÑO 750 ML": [
+  "GELES DE BAÑO 750ML": [
     { "desde": 0, "hasta": 47, "precio": 1.48 },
     { "desde": 48, "hasta": 95, "precio": 1.39 },
     { "desde": 96, "hasta": 251, "precio": 1.37 },
@@ -7,24 +7,23 @@
     { "desde": 540, "hasta": 1079, "precio": 1.31 },
     { "desde": 1080, "hasta": null, "precio": 1.23 }
   ],
-  "GELES FAMILIARES 1 L": [
-    { "desde": 0, "hasta": 35, "precio": 1.76 },
-    { "desde": 36, "hasta": 71, "precio": 1.65 },
-    { "desde": 72, "hasta": 179, "precio": 1.63 },
-    { "desde": 180, "hasta": 359, "precio": 1.59 },
-    { "desde": 360, "hasta": 719, "precio": 1.56 },
-    { "desde": 720, "hasta": null, "precio": 1.46 }
+  "GELES DE BAÑO 1L": [
+    { "desde": 0, "hasta": 99, "precio": 1.24 },
+    { "desde": 100, "hasta": 299, "precio": 1.18 },
+    { "desde": 300, "hasta": 599, "precio": 1.13 },
+    { "desde": 600, "hasta": 1199, "precio": 1.08 },
+    { "desde": 1200, "hasta": null, "precio": 1.03 }
   ],
-  "BODY MIST": [
-    { "desde": 0, "hasta": 24, "precio": 1.29 },
-    { "desde": 25, "hasta": 120, "precio": 1.24 },
-    { "desde": 121, "hasta": 240, "precio": 1.18 },
-    { "desde": 241, "hasta": null, "precio": 1.14 }
+  "HAIR & BODY MIST": [
+    { "desde": 0, "hasta": 119, "precio": 1.29 },
+    { "desde": 120, "hasta": 239, "precio": 1.24 },
+    { "desde": 240, "hasta": 499, "precio": 1.18 },
+    { "desde": 500, "hasta": null, "precio": 1.14 }
   ],
   "JABONES DE MANOS": [
-    { "desde": 0, "hasta": 17, "precio": 1.29 },
-    { "desde": 18, "hasta": 143, "precio": 1.24 },
-    { "desde": 144, "hasta": 227, "precio": 1.18 },
-    { "desde": 228, "hasta": null, "precio": 1.13 }
+    { "desde": 0, "hasta": 143, "precio": 1.29 },
+    { "desde": 144, "hasta": 227, "precio": 1.24 },
+    { "desde": 228, "hasta": 503, "precio": 1.18 },
+    { "desde": 504, "hasta": null, "precio": 1.13 }
   ]
 }
