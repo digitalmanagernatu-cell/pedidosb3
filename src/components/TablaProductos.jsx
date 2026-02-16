@@ -1,6 +1,44 @@
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { calcularPrecioUnitario, calcularAhorro, tieneEscalado } from '../services/preciosService';
+import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria } from '../services/preciosService';
+
+function EscaladoBadge({ producto }) {
+  const [mostrar, setMostrar] = useState(false);
+  const info = getEscaladosCategoria(producto);
+  if (!info) return null;
+
+  return (
+    <span
+      className="relative inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 cursor-help"
+      onMouseEnter={() => setMostrar(true)}
+      onMouseLeave={() => setMostrar(false)}
+    >
+      ESCALADO
+      {mostrar && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-52 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 pointer-events-none">
+          <p className="font-bold mb-1.5 text-green-300">{info.categoria}</p>
+          <table className="w-full">
+            <tbody>
+              {info.escalados.map((e, i) => {
+                const siguiente = info.escalados[i + 1];
+                const rango = siguiente
+                  ? `${e.desde} - ${siguiente.desde - 1} uds`
+                  : `${e.desde}+ uds`;
+                return (
+                  <tr key={e.desde} className="border-t border-gray-700 first:border-0">
+                    <td className="py-0.5 pr-2 text-gray-300">{rango}</td>
+                    <td className="py-0.5 text-right font-mono font-bold">{e.precio.toFixed(2)} €</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900"></div>
+        </div>
+      )}
+    </span>
+  );
+}
 
 export default function TablaProductos({ productos, seleccion, onSeleccionChange }) {
   const [busqueda, setBusqueda] = useState('');
@@ -97,7 +135,6 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
               const precioUnit = isChecked ? calcularPrecioUnitario(producto, cantidad) : producto.pvl;
               const subtotal = isChecked ? precioUnit * cantidad : 0;
               const ahorro = isChecked ? calcularAhorro(producto, cantidad) : 0;
-              const escalado = tieneEscalado(producto);
 
               return (
                 <tr
@@ -116,11 +153,7 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-gray-900">{producto.referencia}</span>
-                      {escalado && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                          ESCALADO
-                        </span>
-                      )}
+                      <EscaladoBadge producto={producto} />
                       {producto.oferta && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
                           {producto.oferta}

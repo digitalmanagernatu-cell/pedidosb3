@@ -28,6 +28,12 @@ export default function DetallePedido() {
 
   const handlePrint = () => window.print();
 
+  // Backward compatibility: old orders have codigo_cliente + cif, new ones have codigo_cliente (as ID/CIF) + nombre_cliente
+  const idCifDisplay = pedido.nombre_cliente
+    ? pedido.codigo_cliente
+    : `${pedido.codigo_cliente}${pedido.cif ? ` / ${pedido.cif}` : ''}`;
+  const nombreDisplay = pedido.nombre_cliente || '—';
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b border-gray-200 no-print">
@@ -65,12 +71,12 @@ export default function DetallePedido() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg mb-6">
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Cliente</p>
-              <p className="font-semibold text-gray-900">{pedido.codigo_cliente}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">ID / CIF</p>
+              <p className="font-semibold text-gray-900">{idCifDisplay}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">CIF/NIF</p>
-              <p className="font-semibold text-gray-900">{pedido.cif}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Nombre del Cliente</p>
+              <p className="font-semibold text-gray-900">{nombreDisplay}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide">Zona</p>
@@ -91,13 +97,18 @@ export default function DetallePedido() {
               </thead>
               <tbody>
                 {pedido.lineas.map((linea, idx) => (
-                  <tr key={linea.codigo} className={`border-t border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                  <tr key={`${linea.codigo}-${idx}`} className={`border-t border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                     <td className="px-3 py-2.5 font-mono text-xs text-gray-600">{linea.codigo}</td>
                     <td className="px-3 py-2.5">
                       <span className="text-gray-900">{linea.referencia}</span>
                       {linea.tiene_escalado && (
                         <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                           ESCALADO
+                        </span>
+                      )}
+                      {linea.tiene_promo_2x1 && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                          2X1
                         </span>
                       )}
                     </td>
@@ -118,8 +129,14 @@ export default function DetallePedido() {
               </div>
               {pedido.totales.ahorro > 0 && (
                 <div className="flex justify-between text-green-600">
-                  <span>Ahorro</span>
+                  <span>Ahorro escalado</span>
                   <span className="font-bold">{pedido.totales.ahorro.toFixed(2)} €</span>
+                </div>
+              )}
+              {(pedido.totales.descuento_2x1 || 0) > 0 && (
+                <div className="flex justify-between text-orange-600">
+                  <span>Promo 2x1</span>
+                  <span className="font-bold">-{pedido.totales.descuento_2x1.toFixed(2)} €</span>
                 </div>
               )}
               <div className="flex justify-between">

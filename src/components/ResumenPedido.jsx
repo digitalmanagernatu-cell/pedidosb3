@@ -1,7 +1,7 @@
-import { ShoppingCart, TrendingDown } from 'lucide-react';
+import { ShoppingCart, TrendingDown, Tag } from 'lucide-react';
 
 export default function ResumenPedido({ totales, onCrearPedido, disabled }) {
-  const { totalProductos, subtotal, ahorro, iva, total } = totales;
+  const { totalProductos, subtotal, ahorro, descuento2x1, iva, total } = totales;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-50 no-print">
@@ -21,6 +21,12 @@ export default function ResumenPedido({ totales, onCrearPedido, disabled }) {
               <div className="flex items-center gap-1.5">
                 <TrendingDown className="w-4 h-4 text-green-500" />
                 <span className="text-green-600 font-bold">Ahorro: {ahorro.toFixed(2)} €</span>
+              </div>
+            )}
+            {descuento2x1 > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Tag className="w-4 h-4 text-orange-500" />
+                <span className="text-orange-600 font-bold">Promo 2x1: -{descuento2x1.toFixed(2)} €</span>
               </div>
             )}
             <div>

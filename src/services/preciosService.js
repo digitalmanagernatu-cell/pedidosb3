@@ -75,3 +75,40 @@ export function getEscaladosCategoria(producto) {
   if (!categoria) return null;
   return { categoria, escalados: TARIFAS[categoria] };
 }
+
+/**
+ * Calcula el descuento 2x1 agrupando por categoría.
+ * Por cada 2 unidades de productos con oferta en la misma categoría,
+ * la unidad más barata es gratis.
+ */
+export function calcularDescuento2x1(seleccion, productos) {
+  // Agrupar unidades de productos con oferta por categoría
+  const categorias = {};
+
+  Object.entries(seleccion).forEach(([codigo, { cantidad, checked }]) => {
+    if (!checked || cantidad <= 0) return;
+    const producto = productos.find(p => p.codigo === codigo);
+    if (!producto || !producto.oferta) return;
+
+    const cat = producto.categoria;
+    if (!categorias[cat]) categorias[cat] = [];
+
+    const precioUnit = calcularPrecioUnitario(producto, cantidad);
+    for (let i = 0; i < cantidad; i++) {
+      categorias[cat].push(precioUnit);
+    }
+  });
+
+  let descuento = 0;
+
+  Object.values(categorias).forEach(precios => {
+    // Ordenar descendente: los más caros se pagan, los más baratos son gratis
+    precios.sort((a, b) => b - a);
+    // Cada segunda unidad es gratis
+    for (let i = 1; i < precios.length; i += 2) {
+      descuento += precios[i];
+    }
+  });
+
+  return descuento;
+}
