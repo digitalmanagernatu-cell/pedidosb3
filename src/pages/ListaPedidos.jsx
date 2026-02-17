@@ -88,15 +88,27 @@ export default function ListaPedidos() {
 
     try {
       const buffer = await file.arrayBuffer();
-      const productos = parseTarifaExcel(buffer);
+      const { productos, filasDescartadas } = parseTarifaExcel(buffer);
 
       if (productos.length === 0) {
-        setUploadMsg({ tipo: 'error', texto: 'No se encontraron productos en el archivo.' });
+        let msg = 'No se encontraron productos en el archivo.';
+        if (filasDescartadas.length > 0) {
+          msg += ` Se descartaron ${filasDescartadas.length} filas con datos incompletos (sin precio válido).`;
+        }
+        setUploadMsg({ tipo: 'error', texto: msg });
         return;
       }
 
       setProductos(productos);
-      setUploadMsg({ tipo: 'ok', texto: `Tarifa actualizada: ${productos.length} productos cargados. Recarga la página de pedidos para ver los cambios.` });
+
+      let texto = `Tarifa actualizada: ${productos.length} productos cargados.`;
+      if (filasDescartadas.length > 0) {
+        const ejemplos = filasDescartadas.slice(0, 5).map(f => `${f.codigo} - ${f.referencia} (fila ${f.fila}, PVL: "${f.pvl ?? 'vacío'}")`).join('; ');
+        texto += ` ⚠ ${filasDescartadas.length} fila(s) descartadas por precio inválido: ${ejemplos}`;
+        if (filasDescartadas.length > 5) texto += `... y ${filasDescartadas.length - 5} más`;
+      }
+      texto += ' Recarga la página de pedidos para ver los cambios.';
+      setUploadMsg({ tipo: filasDescartadas.length > 0 ? 'warning' : 'ok', texto });
     } catch (err) {
       setUploadMsg({ tipo: 'error', texto: `Error al procesar el archivo: ${err.message}` });
     }
@@ -208,7 +220,11 @@ export default function ListaPedidos() {
             </div>
           </div>
           {uploadMsg && (
-            <div className={`mt-3 p-3 rounded-lg text-sm ${uploadMsg.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            <div className={`mt-3 p-3 rounded-lg text-sm ${
+              uploadMsg.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' :
+              uploadMsg.tipo === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+              'bg-red-50 text-red-700 border border-red-200'
+            }`}>
               {uploadMsg.texto}
             </div>
           )}
