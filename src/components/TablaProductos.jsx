@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { Search, AlertTriangle } from 'lucide-react';
 import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria } from '../services/preciosService';
 
 function EscaladoBadge({ producto }) {
@@ -40,7 +40,7 @@ function EscaladoBadge({ producto }) {
   );
 }
 
-export default function TablaProductos({ productos, seleccion, onSeleccionChange }) {
+export default function TablaProductos({ productos, seleccion, onSeleccionChange, avisosCajas = {} }) {
   const [busqueda, setBusqueda] = useState('');
 
   const productosFiltrados = useMemo(() => {
@@ -121,10 +121,19 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
           <tbody>
             {productosAgrupados.map((item, idx) => {
               if (item.tipo === 'categoria') {
+                const aviso = avisosCajas[item.nombre];
                 return (
                   <tr key={`cat-${item.nombre}`} className="bg-black">
-                    <td colSpan={9} className="px-4 py-2 font-bold text-white text-sm tracking-wide">
-                      {item.nombre}
+                    <td colSpan={9} className="px-4 py-2 text-white text-sm tracking-wide">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold">{item.nombre}</span>
+                        {aviso && (
+                          <span className="flex items-center gap-1.5 text-yellow-300 text-xs font-normal">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            {aviso.total} uds — Faltan {aviso.faltan} para completar caja (caja de {aviso.udCaja})
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

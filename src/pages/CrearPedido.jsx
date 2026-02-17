@@ -40,14 +40,46 @@ export default function CrearPedido() {
     return { totalProductos, subtotal: subtotalNeto, ahorro, descuento2x1, iva, total };
   }, [seleccion, productos]);
 
+  const avisosCajas = useMemo(() => {
+    const porCategoria = {};
+
+    Object.entries(seleccion).forEach(([codigo, { cantidad, checked }]) => {
+      if (!checked || cantidad <= 0) return;
+      const producto = productos.find(p => p.codigo === codigo);
+      if (!producto || !producto.udCaja || producto.udCaja <= 1) return;
+
+      const cat = producto.categoria;
+      if (!porCategoria[cat]) {
+        porCategoria[cat] = { total: 0, udCaja: producto.udCaja };
+      }
+      porCategoria[cat].total += cantidad;
+    });
+
+    const avisos = {};
+    Object.entries(porCategoria).forEach(([cat, { total, udCaja }]) => {
+      const resto = total % udCaja;
+      if (resto > 0) {
+        avisos[cat] = { total, udCaja, faltan: udCaja - resto };
+      }
+    });
+
+    return avisos;
+  }, [seleccion, productos]);
+
   const validar = useCallback(() => {
     const errs = {};
     if (!codigoCliente.trim()) errs.codigoCliente = 'El código de cliente o CIF/NIF es obligatorio';
     if (!nombreCliente.trim()) errs.nombreCliente = 'El nombre del cliente es obligatorio';
     if (!zona.trim()) errs.zona = 'La zona es obligatoria';
     if (totales.totalProductos === 0) errs.productos = 'Selecciona al menos un producto';
+    if (Object.keys(avisosCajas).length > 0) {
+      const cats = Object.entries(avisosCajas)
+        .map(([cat, { faltan, udCaja }]) => `${cat}: faltan ${faltan} uds (caja de ${udCaja})`)
+        .join('; ');
+      errs.cajas = `Cajas incompletas: ${cats}`;
+    }
     return errs;
-  }, [codigoCliente, nombreCliente, zona, totales.totalProductos]);
+  }, [codigoCliente, nombreCliente, zona, totales.totalProductos, avisosCajas]);
 
   const handleCrearPedido = () => {
     const errs = validar();
@@ -155,6 +187,9 @@ export default function CrearPedido() {
           {errores.productos && (
             <p className="text-red-500 text-sm mt-3 font-medium">{errores.productos}</p>
           )}
+          {errores.cajas && (
+            <p className="text-red-500 text-sm mt-2 font-medium">{errores.cajas}</p>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-5">
@@ -163,6 +198,7 @@ export default function CrearPedido() {
             productos={productos}
             seleccion={seleccion}
             onSeleccionChange={setSeleccion}
+            avisosCajas={avisosCajas}
           />
         </div>
       </main>
