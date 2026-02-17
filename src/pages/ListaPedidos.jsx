@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw } from 'lucide-react';
-import { getPedidos, getEstadisticas, eliminarPedido } from '../services/pedidosService';
+import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
 import { getUsuario, logout } from '../services/authService';
 import { setProductos } from '../services/productosService';
 import { parseTarifaExcel } from '../services/tarifaParser';
@@ -56,7 +56,17 @@ export default function ListaPedidos() {
     setVersion(v => v + 1);
   };
 
-  const handleRefresh = () => setVersion(v => v + 1);
+  const handleRefresh = async () => {
+    await sincronizarDesdeFirestore();
+    setVersion(v => v + 1);
+  };
+
+  // Sincronizar desde Firestore al cargar la página
+  useEffect(() => {
+    sincronizarDesdeFirestore().then(ok => {
+      if (ok) setVersion(v => v + 1);
+    });
+  }, []);
 
   const handleEnviarEmail = async () => {
     if (!emailInput.trim() || !emailModal) return;
