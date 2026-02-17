@@ -61,7 +61,7 @@ export default function DetallePedido() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pedido <span className="text-blue-600">#{pedido.id}</span></h1>
+              <h1 className="text-2xl font-bold text-gray-900">Pedido</h1>
               <p className="text-gray-500 mt-1">{formatFecha(pedido.fecha)}</p>
             </div>
             <div className="mt-3 sm:mt-0 hidden print:block text-right">

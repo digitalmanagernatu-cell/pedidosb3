@@ -70,7 +70,7 @@ export default function CrearPedido() {
     const errs = {};
     if (!codigoCliente.trim()) errs.codigoCliente = 'El código de cliente o CIF/NIF es obligatorio';
     if (!nombreCliente.trim()) errs.nombreCliente = 'El nombre del cliente es obligatorio';
-    if (!zona.trim()) errs.zona = 'La zona es obligatoria';
+    if (!zona.trim()) errs.zona = 'La zona o nombre del comercial es obligatorio';
     if (totales.totalProductos === 0) errs.productos = 'Selecciona al menos un producto';
     if (Object.keys(avisosCajas).length > 0) {
       const cats = Object.entries(avisosCajas)
@@ -156,7 +156,7 @@ export default function CrearPedido() {
                 type="text"
                 value={codigoCliente}
                 onChange={(e) => setCodigoCliente(e.target.value)}
-                placeholder="Ej: FARM001 o B12345678"
+                placeholder="Ej. CF0001 o B12345678"
                 className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${errores.codigoCliente ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
               />
               {errores.codigoCliente && <p className="text-red-500 text-xs mt-1">{errores.codigoCliente}</p>}
@@ -173,12 +173,12 @@ export default function CrearPedido() {
               {errores.nombreCliente && <p className="text-red-500 text-xs mt-1">{errores.nombreCliente}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Código de Zona *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Zona o Nombre del Comercial *</label>
               <input
                 type="text"
                 value={zona}
                 onChange={(e) => setZona(e.target.value)}
-                placeholder="Ej: FAR001"
+                placeholder="Ej. FAR001 o Juan Pérez"
                 className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${errores.zona ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
               />
               {errores.zona && <p className="text-red-500 text-xs mt-1">{errores.zona}</p>}
