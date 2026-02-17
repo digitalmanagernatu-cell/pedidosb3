@@ -41,7 +41,7 @@ export default function ResumenPedido({ totales, onCrearPedido, disabled }) {
           <button
             onClick={onCrearPedido}
             disabled={disabled}
-            className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed text-sm sm:text-base whitespace-nowrap cursor-pointer"
+            className="px-8 py-3 bg-black text-white font-bold rounded-lg hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed text-sm sm:text-base whitespace-nowrap cursor-pointer"
           >
             CREAR PEDIDO
           </button>

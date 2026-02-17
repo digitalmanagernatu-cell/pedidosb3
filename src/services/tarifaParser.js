@@ -16,20 +16,21 @@ export function parseTarifaExcel(buffer) {
     const colA = row[0] != null ? String(row[0]).trim() : '';
     const colB = row[1] != null ? String(row[1]).trim() : '';
     const colC = row[2] != null ? String(row[2]).trim() : '';
-    const colD = row[3];
-    const colG = row[6] != null ? String(row[6]).trim() : '';
-    const colL = row[11];
+    const colD = row[3]; // UD/CAJA
+    const colE = row[4]; // PVL
+    const colH = row[7] != null ? String(row[7]).trim() : '';
+    const colM = row[12]; // PVP REC
 
     // Skip title row and header row
     if (colA === 'CODG' || colA.startsWith('TARIFA')) continue;
 
-    // Detect offer in column G (e.g. "2X1")
-    if (colG && /^\d+[xX]\d+$/.test(colG) && colA && colC && typeof colD === 'number') {
-      ofertaActual = colG.toUpperCase();
+    // Detect offer in column H (e.g. "2X1")
+    if (colH && /^\d+[xX]\d+$/.test(colH) && colA && colC && typeof colE === 'number') {
+      ofertaActual = colH.toUpperCase();
     }
 
     // Category row: text in A, rest empty
-    if (colA && !colB && !colC && (colD === null || colD === '' || typeof colD !== 'number')) {
+    if (colA && !colB && !colC && (colE === null || colE === '' || typeof colE !== 'number')) {
       // Skip escalado headers and threshold rows
       if (colA.toUpperCase().includes('ESCALADO') || colA.includes('>')) continue;
 
@@ -39,25 +40,27 @@ export function parseTarifaExcel(buffer) {
     }
 
     // Escalado threshold row (">X UNID" pattern) — skip
-    if (colA.includes('>') || (typeof colD === 'string' && colD.includes('>'))) continue;
+    if (colA.includes('>') || (typeof colE === 'string' && colE.includes('>'))) continue;
 
     // Product row: has code, reference, and numeric PVL
-    if (colA && colC && typeof colD === 'number') {
+    if (colA && colC && typeof colE === 'number') {
       const ean = colB ? colB.replace(/\s+/g, '') : '';
-      const pvpRec = typeof colL === 'number' ? colL : null;
+      const pvpRec = typeof colM === 'number' ? colM : null;
+      const udCaja = typeof colD === 'number' ? colD : null;
 
       const producto = {
         codigo: colA,
         ean,
         referencia: colC,
-        pvl: colD,
+        udCaja,
+        pvl: colE,
         pvpRec,
         categoria: categoriaActual || 'OTROS'
       };
 
-      // Check for offer in column G of this row
-      if (colG && /^\d+[xX]\d+$/.test(colG)) {
-        producto.oferta = colG.toUpperCase();
+      // Check for offer in column H of this row
+      if (colH && /^\d+[xX]\d+$/.test(colH)) {
+        producto.oferta = colH.toUpperCase();
       } else if (ofertaActual) {
         producto.oferta = ofertaActual;
       }
