@@ -7,9 +7,9 @@ import emailjs from '@emailjs/browser';
 // 2. Conecta tu cuenta de Gmail en Email Services
 // 3. Crea un template con las variables: to_email, subject, body_html
 // 4. Copia los IDs aquí abajo:
-const EMAILJS_SERVICE_ID = '';   // Ej: 'service_abc123'
-const EMAILJS_TEMPLATE_ID = '';  // Ej: 'template_xyz789'
-const EMAILJS_PUBLIC_KEY = '';   // Ej: 'AbCdEf123456'
+const EMAILJS_SERVICE_ID = 'service_betreson';   // Ej: 'service_abc123'
+const EMAILJS_TEMPLATE_ID = 'template_zzuw4ew';  // Ej: 'template_xyz789'
+const EMAILJS_PUBLIC_KEY = 'KIeBhWzfOq7akpXce';   // Ej: 'AbCdEf123456'
 // ============================================================
 
 export function isEmailConfigured() {
