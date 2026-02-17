@@ -1,11 +1,21 @@
 import { read, utils } from 'xlsx';
 
+// Try to parse a value as a number (handles strings like "3,50" or "3.50")
+function parseNumero(val) {
+  if (typeof val === 'number') return val;
+  if (val == null || val === '') return null;
+  const str = String(val).trim().replace(',', '.');
+  const num = parseFloat(str);
+  return isNaN(num) ? null : num;
+}
+
 export function parseTarifaExcel(buffer) {
   const wb = read(buffer, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = utils.sheet_to_json(ws, { header: 1, defval: null });
 
   const productos = [];
+  const filasDescartadas = [];
   let categoriaActual = null;
   let ofertaActual = null;
 
@@ -21,16 +31,18 @@ export function parseTarifaExcel(buffer) {
     const colH = row[7] != null ? String(row[7]).trim() : '';
     const colM = row[12]; // PVP REC
 
+    const pvlNum = parseNumero(colE);
+
     // Skip title row and header row
     if (colA === 'CODG' || colA.startsWith('TARIFA')) continue;
 
     // Detect offer in column H (e.g. "2X1")
-    if (colH && /^\d+[xX]\d+$/.test(colH) && colA && colC && typeof colE === 'number') {
+    if (colH && /^\d+[xX]\d+$/.test(colH) && colA && colC && pvlNum != null) {
       ofertaActual = colH.toUpperCase();
     }
 
     // Category row: text in A, rest empty
-    if (colA && !colB && !colC && (colE === null || colE === '' || typeof colE !== 'number')) {
+    if (colA && !colB && !colC && pvlNum == null) {
       // Skip escalado headers and threshold rows
       if (colA.toUpperCase().includes('ESCALADO') || colA.includes('>')) continue;
 
@@ -40,20 +52,20 @@ export function parseTarifaExcel(buffer) {
     }
 
     // Escalado threshold row (">X UNID" pattern) — skip
-    if (colA.includes('>') || (typeof colE === 'string' && colE.includes('>'))) continue;
+    if (colA.includes('>') || (typeof colE === 'string' && String(colE).includes('>'))) continue;
 
     // Product row: has code, reference, and numeric PVL
-    if (colA && colC && typeof colE === 'number') {
+    if (colA && colC && pvlNum != null) {
       const ean = colB ? colB.replace(/\s+/g, '') : '';
-      const pvpRec = typeof colM === 'number' ? colM : null;
-      const udCaja = typeof colD === 'number' ? colD : null;
+      const pvpRec = parseNumero(colM);
+      const udCaja = parseNumero(colD);
 
       const producto = {
         codigo: colA,
         ean,
         referencia: colC,
         udCaja,
-        pvl: colE,
+        pvl: pvlNum,
         pvpRec,
         categoria: categoriaActual || 'OTROS'
       };
@@ -66,10 +78,13 @@ export function parseTarifaExcel(buffer) {
       }
 
       productos.push(producto);
+    } else if (colA && colC) {
+      // Has code and name but no valid price — track as skipped
+      filasDescartadas.push({ fila: i + 1, codigo: colA, referencia: colC, pvl: colE });
     }
   }
 
-  return productos;
+  return { productos, filasDescartadas };
 }
 
 function normalizarCategoria(texto) {
