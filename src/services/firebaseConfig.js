@@ -11,12 +11,12 @@ import { getFirestore } from 'firebase/firestore';
 // 5. En Firestore Database, crea una base de datos en modo de prueba
 // ============================================================
 const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
+  apiKey: 'AIzaSyAurvD88a2JgGwP6LprTqJzZH2IUhUc4QE',
+  authDomain: 'pedidosb3.firebaseapp.com',
+  projectId: 'pedidosb3',
+  storageBucket: 'pedidosb3.firebasestorage.app',
+  messagingSenderId: '544695215064',
+  appId: '1:544695215064:web:9c4ec0d67e74e0bf3ec8ad'
 };
 
 let db = null;
