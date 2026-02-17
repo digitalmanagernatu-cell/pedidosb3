@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Eye, Search, Trash2, Upload } from 'lucide-react';
+import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw } from 'lucide-react';
 import { getPedidos, getEstadisticas, eliminarPedido } from '../services/pedidosService';
 import { getUsuario, logout } from '../services/authService';
 import { setProductos } from '../services/productosService';
 import { parseTarifaExcel } from '../services/tarifaParser';
+import { enviarPedidoEmail, isEmailConfigured } from '../services/emailService';
 import EstadisticasAdmin from '../components/EstadisticasAdmin';
 
 function formatFecha(iso) {
@@ -19,6 +20,9 @@ export default function ListaPedidos() {
   const [filtro, setFiltro] = useState('');
   const [version, setVersion] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [emailModal, setEmailModal] = useState(null);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailStatus, setEmailStatus] = useState(null);
   const [uploadMsg, setUploadMsg] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -50,6 +54,22 @@ export default function ListaPedidos() {
     eliminarPedido(id);
     setConfirmDelete(null);
     setVersion(v => v + 1);
+  };
+
+  const handleRefresh = () => setVersion(v => v + 1);
+
+  const handleEnviarEmail = async () => {
+    if (!emailInput.trim() || !emailModal) return;
+    setEmailStatus({ tipo: 'enviando', texto: 'Enviando...' });
+    try {
+      const pedido = pedidos.find(p => p.id === emailModal);
+      if (!pedido) throw new Error('Pedido no encontrado');
+      await enviarPedidoEmail(pedido, emailInput.trim());
+      setEmailStatus({ tipo: 'ok', texto: 'Email enviado correctamente' });
+      setTimeout(() => { setEmailModal(null); setEmailInput(''); setEmailStatus(null); }, 2000);
+    } catch (err) {
+      setEmailStatus({ tipo: 'error', texto: err.message });
+    }
   };
 
   const handleUploadTarifa = async (e) => {
@@ -130,6 +150,14 @@ export default function ListaPedidos() {
           </h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500 hidden sm:inline">{usuario?.email}</span>
+            <button
+              onClick={handleRefresh}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+              title="Refrescar datos"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refrescar
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
@@ -239,6 +267,13 @@ export default function ListaPedidos() {
                             PDF
                           </button>
                           <button
+                            onClick={() => { setEmailModal(pedido.id); setEmailInput(''); setEmailStatus(null); }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100 transition-colors cursor-pointer"
+                            title="Enviar por email"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => setConfirmDelete(pedido.id)}
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
                           >
@@ -278,6 +313,54 @@ export default function ListaPedidos() {
                 className="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
               >
                 Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email send modal */}
+      {emailModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <div className="mx-auto w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+              <Mail className="w-7 h-7 text-purple-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2 text-center">Enviar pedido por email</h3>
+            <p className="text-gray-600 text-sm mb-4 text-center">
+              Introduce el email del destinatario
+            </p>
+            <input
+              type="email"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              placeholder="email@ejemplo.com"
+              className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm mb-3"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleEnviarEmail()}
+            />
+            {emailStatus && (
+              <div className={`mb-3 p-2.5 rounded-lg text-xs ${
+                emailStatus.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' :
+                emailStatus.tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}>
+                {emailStatus.texto}
+              </div>
+            )}
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => { setEmailModal(null); setEmailInput(''); setEmailStatus(null); }}
+                className="px-5 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEnviarEmail}
+                disabled={!emailInput.trim() || emailStatus?.tipo === 'enviando'}
+                className="px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Enviar
               </button>
             </div>
           </div>
