@@ -109,7 +109,9 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
             <tr className="bg-gray-50 text-left">
               <th className="px-3 py-3 w-10"></th>
               <th className="px-3 py-3 font-semibold text-gray-700">Código</th>
+              <th className="px-3 py-3 font-semibold text-gray-700">EAN13</th>
               <th className="px-3 py-3 font-semibold text-gray-700">Producto</th>
+              <th className="px-3 py-3 font-semibold text-gray-700 text-center">Ud/Caja</th>
               <th className="px-3 py-3 font-semibold text-gray-700 text-center">Cantidad</th>
               <th className="px-3 py-3 font-semibold text-gray-700 text-right">PVL</th>
               <th className="px-3 py-3 font-semibold text-gray-700 text-right">PVP Rec.</th>
@@ -120,8 +122,8 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
             {productosAgrupados.map((item, idx) => {
               if (item.tipo === 'categoria') {
                 return (
-                  <tr key={`cat-${item.nombre}`} className="bg-blue-600">
-                    <td colSpan={7} className="px-4 py-2 font-bold text-white text-sm tracking-wide">
+                  <tr key={`cat-${item.nombre}`} className="bg-black">
+                    <td colSpan={9} className="px-4 py-2 font-bold text-white text-sm tracking-wide">
                       {item.nombre}
                     </td>
                   </tr>
@@ -150,6 +152,7 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                     />
                   </td>
                   <td className="px-3 py-2.5 font-mono text-gray-600 text-xs">{producto.codigo}</td>
+                  <td className="px-3 py-2.5 font-mono text-gray-500 text-xs">{producto.ean || '—'}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-gray-900">{producto.referencia}</span>
@@ -161,6 +164,7 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                       )}
                     </div>
                   </td>
+                  <td className="px-3 py-2.5 text-center text-gray-600 text-xs">{producto.udCaja || '—'}</td>
                   <td className="px-3 py-2.5 text-center">
                     <input
                       type="number"
