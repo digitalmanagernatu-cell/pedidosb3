@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Check } from 'lucide-react';
 import { getProductos } from '../services/productosService';
@@ -9,8 +9,15 @@ import { guardarPedido } from '../services/pedidosService';
 
 export default function CrearPedido() {
   const navigate = useNavigate();
-  const [productos] = useState(() => getProductos());
+  const [productos, setProductos] = useState(() => getProductos());
   const [codigoCliente, setCodigoCliente] = useState('');
+
+  // Refresh products when returning to this page (e.g. after tariff upload)
+  useEffect(() => {
+    const handleFocus = () => setProductos(getProductos());
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
   const [nombreCliente, setNombreCliente] = useState('');
   const [zona, setZona] = useState('');
   const [seleccion, setSeleccion] = useState({});

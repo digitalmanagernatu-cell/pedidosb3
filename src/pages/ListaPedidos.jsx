@@ -24,6 +24,7 @@ export default function ListaPedidos() {
   const [emailInput, setEmailInput] = useState('');
   const [emailStatus, setEmailStatus] = useState(null);
   const [uploadMsg, setUploadMsg] = useState(null);
+  const [productosSubidos, setProductosSubidos] = useState(null);
   const fileInputRef = useRef(null);
 
   const pedidos = useMemo(() => {
@@ -100,15 +101,22 @@ export default function ListaPedidos() {
       }
 
       setProductos(productos);
+      setProductosSubidos(productos);
 
-      let texto = `Tarifa actualizada: ${productos.length} productos cargados.`;
+      // Build category summary
+      const porCategoria = {};
+      productos.forEach(p => {
+        if (!porCategoria[p.categoria]) porCategoria[p.categoria] = [];
+        porCategoria[p.categoria].push(p);
+      });
+
+      let texto = `Tarifa actualizada: ${productos.length} productos en ${Object.keys(porCategoria).length} categorías.`;
       if (filasDescartadas.length > 0) {
         const ejemplos = filasDescartadas.slice(0, 5).map(f => `${f.codigo} - ${f.referencia} (fila ${f.fila}, PVL: "${f.pvl ?? 'vacío'}")`).join('; ');
-        texto += ` ⚠ ${filasDescartadas.length} fila(s) descartadas por precio inválido: ${ejemplos}`;
+        texto += ` ⚠ ${filasDescartadas.length} fila(s) descartadas: ${ejemplos}`;
         if (filasDescartadas.length > 5) texto += `... y ${filasDescartadas.length - 5} más`;
       }
-      texto += ' Recarga la página de pedidos para ver los cambios.';
-      setUploadMsg({ tipo: filasDescartadas.length > 0 ? 'warning' : 'ok', texto });
+      setUploadMsg({ tipo: filasDescartadas.length > 0 ? 'warning' : 'ok', texto, porCategoria });
     } catch (err) {
       setUploadMsg({ tipo: 'error', texto: `Error al procesar el archivo: ${err.message}` });
     }
@@ -225,7 +233,24 @@ export default function ListaPedidos() {
               uploadMsg.tipo === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
               'bg-red-50 text-red-700 border border-red-200'
             }`}>
-              {uploadMsg.texto}
+              <p>{uploadMsg.texto}</p>
+              {uploadMsg.porCategoria && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer font-semibold">Ver productos por categoría</summary>
+                  <div className="mt-2 max-h-64 overflow-y-auto text-xs space-y-2">
+                    {Object.entries(uploadMsg.porCategoria).map(([cat, prods]) => (
+                      <div key={cat}>
+                        <p className="font-bold">{cat} ({prods.length})</p>
+                        <ul className="ml-4 list-disc">
+                          {prods.map(p => (
+                            <li key={p.codigo}>{p.codigo} — {p.referencia} — {p.pvl.toFixed(2)}€</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           )}
         </div>
