@@ -29,7 +29,8 @@ export async function enviarPedidoSellforge(pedido) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Error HTTP: ${res.status}`);
+    const detail = err.detail ? ` | Detalle: ${typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)}` : '';
+    throw new Error((err.error || `Error HTTP: ${res.status}`) + detail);
   }
 
   const json = await res.json();
