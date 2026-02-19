@@ -186,9 +186,9 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                       type="number"
                       min="0"
                       value={isChecked ? cantidad : ''}
-                      disabled={!isChecked}
                       onChange={(e) => handleCantidad(producto.codigo, e.target.value)}
-                      className="w-20 px-2 py-1.5 text-center border-2 border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                      onFocus={() => { if (!isChecked) handleCheck(producto.codigo, true); }}
+                      className="w-20 px-2 py-1.5 text-center border-2 border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
                   </td>
                   <td className="px-3 py-2.5 text-right">
