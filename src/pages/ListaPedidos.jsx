@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw } from 'lucide-react';
 import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
 import { getUsuario, logout } from '../services/authService';
-import { setProductos } from '../services/productosService';
+import { setProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import { parseTarifaExcel } from '../services/tarifaParser';
 import { enviarPedidoEmail, isEmailConfigured } from '../services/emailService';
 import EstadisticasAdmin from '../components/EstadisticasAdmin';
@@ -67,6 +67,7 @@ export default function ListaPedidos() {
     sincronizarDesdeFirestore().then(ok => {
       if (ok) setVersion(v => v + 1);
     });
+    sincronizarTarifaDesdeFirestore();
   }, []);
 
   const handleEnviarEmail = async () => {
@@ -100,7 +101,7 @@ export default function ListaPedidos() {
         return;
       }
 
-      setProductos(productos);
+      await setProductos(productos);
       setProductosSubidos(productos);
 
       // Build category summary
