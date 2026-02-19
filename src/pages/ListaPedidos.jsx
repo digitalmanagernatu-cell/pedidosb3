@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield } from 'lucide-react';
+import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List } from 'lucide-react';
 import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
 import { getUsuario, logout, isSuperAdmin, getZonaUsuario, getAdministradores, crearAdministrador, eliminarAdministrador, sincronizarUsuariosDesdeFirestore, ZONAS } from '../services/authService';
 import { setProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
@@ -33,6 +33,7 @@ export default function ListaPedidos() {
   // Gestión de usuarios
   const [admins, setAdmins] = useState(() => getAdministradores());
   const [showCrearUsuario, setShowCrearUsuario] = useState(false);
+  const [showListaUsuarios, setShowListaUsuarios] = useState(false);
   const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', password: '', nombre: '', zona: 'FAR001' });
   const [usuarioMsg, setUsuarioMsg] = useState(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
@@ -273,35 +274,105 @@ export default function ListaPedidos() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         <EstadisticasAdmin stats={stats} />
 
-        {/* Gestión de usuarios — solo super admins */}
+        {/* Gestión de usuarios + Gestión de tarifa — solo super admins, en la misma línea */}
         {esSuperAdmin && (
-          <div className="bg-white rounded-lg shadow-md p-5 mb-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-gray-700" />
-                <h2 className="text-lg font-semibold text-gray-800">Gestión de Administradores</h2>
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              {/* Gestión de usuarios */}
+              <div className="bg-white rounded-lg shadow-md p-5">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-gray-700" />
+                    <h2 className="text-lg font-semibold text-gray-800">Gestión de Usuarios</h2>
+                    {admins.length > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{admins.length}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowCrearUsuario(!showCrearUsuario); setShowListaUsuarios(false); setUsuarioMsg(null); }}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${showCrearUsuario ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Crear Usuario
+                  </button>
+                  <button
+                    onClick={() => { setShowListaUsuarios(!showListaUsuarios); setShowCrearUsuario(false); }}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${showListaUsuarios ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    <List className="w-4 h-4" />
+                    Ver Usuarios ({admins.length})
+                  </button>
+                </div>
+                {usuarioMsg && (
+                  <div className={`mt-3 p-2.5 rounded-lg text-sm ${
+                    usuarioMsg.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' :
+                    'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    {usuarioMsg.texto}
+                  </div>
+                )}
               </div>
-              <button
-                onClick={() => { setShowCrearUsuario(!showCrearUsuario); setUsuarioMsg(null); }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer text-sm"
-              >
-                <UserPlus className="w-4 h-4" />
-                Crear Administrador
-              </button>
+
+              {/* Gestión de tarifa */}
+              <div className="bg-white rounded-lg shadow-md p-5">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800">Gestión de Tarifa</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Sube un Excel (.xlsx) con la tarifa</p>
+                  </div>
+                </div>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleUploadTarifa}
+                    className="hidden"
+                    id="tarifa-upload"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer text-sm"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Subir Nueva Tarifa
+                  </button>
+                </div>
+                {uploadMsg && (
+                  <div className={`mt-3 p-2.5 rounded-lg text-sm ${
+                    uploadMsg.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' :
+                    uploadMsg.tipo === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                    'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    <p>{uploadMsg.texto}</p>
+                    {uploadMsg.porCategoria && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer font-semibold">Ver productos por categoría</summary>
+                        <div className="mt-2 max-h-48 overflow-y-auto text-xs space-y-2">
+                          {Object.entries(uploadMsg.porCategoria).map(([cat, prods]) => (
+                            <div key={cat}>
+                              <p className="font-bold">{cat} ({prods.length})</p>
+                              <ul className="ml-4 list-disc">
+                                {prods.map(p => (
+                                  <li key={p.codigo}>{p.codigo} — {p.referencia} — {p.pvl.toFixed(2)}€</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {usuarioMsg && (
-              <div className={`mb-3 p-3 rounded-lg text-sm ${
-                usuarioMsg.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' :
-                'bg-red-50 text-red-700 border border-red-200'
-              }`}>
-                {usuarioMsg.texto}
-              </div>
-            )}
-
+            {/* Panel crear usuario — se expande debajo */}
             {showCrearUsuario && (
-              <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <h3 className="font-semibold text-indigo-800 mb-3">Nuevo Administrador</h3>
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+                <h3 className="font-semibold text-indigo-800 mb-3">Nuevo Usuario</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Nombre *</label>
@@ -363,99 +434,50 @@ export default function ListaPedidos() {
               </div>
             )}
 
-            {admins.length === 0 ? (
-              <p className="text-sm text-gray-500">No hay administradores creados. Los super administradores pueden ver todos los pedidos.</p>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-left">
-                      <th className="px-3 py-2 font-semibold text-gray-700">Nombre</th>
-                      <th className="px-3 py-2 font-semibold text-gray-700">Email</th>
-                      <th className="px-3 py-2 font-semibold text-gray-700">Zona</th>
-                      <th className="px-3 py-2 font-semibold text-gray-700 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {admins.map(a => (
-                      <tr key={a.email} className="border-t border-gray-100">
-                        <td className="px-3 py-2 font-medium text-gray-900">{a.nombre}</td>
-                        <td className="px-3 py-2 text-gray-600">{a.email}</td>
-                        <td className="px-3 py-2">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            {a.zona}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            onClick={() => setConfirmDeleteUser(a.email)}
-                            className="px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tariff upload section — solo super admins */}
-        {esSuperAdmin && (
-          <div className="bg-white rounded-lg shadow-md p-5 mb-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">Gestión de Tarifa</h2>
-                <p className="text-sm text-gray-500 mt-1">Sube un archivo Excel (.xlsx) con la nueva tarifa de productos</p>
-              </div>
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleUploadTarifa}
-                  className="hidden"
-                  id="tarifa-upload"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors cursor-pointer text-sm"
-                >
-                  <Upload className="w-4 h-4" />
-                  Subir Nueva Tarifa
-                </button>
-              </div>
-            </div>
-            {uploadMsg && (
-              <div className={`mt-3 p-3 rounded-lg text-sm ${
-                uploadMsg.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' :
-                uploadMsg.tipo === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                'bg-red-50 text-red-700 border border-red-200'
-              }`}>
-                <p>{uploadMsg.texto}</p>
-                {uploadMsg.porCategoria && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer font-semibold">Ver productos por categoría</summary>
-                    <div className="mt-2 max-h-64 overflow-y-auto text-xs space-y-2">
-                      {Object.entries(uploadMsg.porCategoria).map(([cat, prods]) => (
-                        <div key={cat}>
-                          <p className="font-bold">{cat} ({prods.length})</p>
-                          <ul className="ml-4 list-disc">
-                            {prods.map(p => (
-                              <li key={p.codigo}>{p.codigo} — {p.referencia} — {p.pvl.toFixed(2)}€</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
+            {/* Lista de usuarios — se expande debajo */}
+            {showListaUsuarios && (
+              <div className="bg-white rounded-lg shadow-md p-5 mb-6">
+                <h3 className="font-semibold text-gray-800 mb-3">Usuarios Creados</h3>
+                {admins.length === 0 ? (
+                  <p className="text-sm text-gray-500">No hay usuarios creados.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 text-left">
+                          <th className="px-3 py-2 font-semibold text-gray-700">Nombre</th>
+                          <th className="px-3 py-2 font-semibold text-gray-700">Email</th>
+                          <th className="px-3 py-2 font-semibold text-gray-700">Zona</th>
+                          <th className="px-3 py-2 font-semibold text-gray-700 text-center">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {admins.map(a => (
+                          <tr key={a.email} className="border-t border-gray-100">
+                            <td className="px-3 py-2 font-medium text-gray-900">{a.nombre}</td>
+                            <td className="px-3 py-2 text-gray-600">{a.email}</td>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                {a.zona}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <button
+                                onClick={() => setConfirmDeleteUser(a.email)}
+                                className="px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}
-          </div>
+          </>
         )}
 
         <div className="bg-white rounded-lg shadow-md p-5">
