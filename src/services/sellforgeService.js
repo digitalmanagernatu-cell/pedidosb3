@@ -2,7 +2,7 @@
 // Sube el archivo sellforge-proxy.php a la raíz de tu WordPress
 // y pon aquí la URL completa. Ejemplo:
 // const PROXY_URL = 'https://tu-dominio.com/sellforge-proxy.php';
-const PROXY_URL = 'https://natuaromatic.com/sellforge-proxy.php';
+const PROXY_URL = 'https://b2b.betreson.com/sellforge-proxy.php';
 
 /**
  * Envía un pedido a Sellforge a través de la Cloud Function proxy.
