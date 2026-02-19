@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Check } from 'lucide-react';
-import { getProductos } from '../services/productosService';
+import { getProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
 import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1 } from '../services/preciosService';
@@ -12,9 +12,17 @@ export default function CrearPedido() {
   const [productos, setProductos] = useState(() => getProductos());
   const [codigoCliente, setCodigoCliente] = useState('');
 
-  // Refresh products when returning to this page (e.g. after tariff upload)
+  // Sincronizar tarifa desde Firestore al cargar y cuando la ventana recupera el foco
   useEffect(() => {
-    const handleFocus = () => setProductos(getProductos());
+    sincronizarTarifaDesdeFirestore().then(actualizado => {
+      if (actualizado) setProductos(getProductos());
+    });
+
+    const handleFocus = () => {
+      sincronizarTarifaDesdeFirestore().then(actualizado => {
+        if (actualizado) setProductos(getProductos());
+      });
+    };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
