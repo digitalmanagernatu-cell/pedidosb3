@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List } from 'lucide-react';
+import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List, Pencil, KeyRound } from 'lucide-react';
 import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
-import { getUsuario, logout, isSuperAdmin, getZonaUsuario, getAdministradores, crearAdministrador, eliminarAdministrador, sincronizarUsuariosDesdeFirestore, ZONAS } from '../services/authService';
+import { getUsuario, logout, isSuperAdmin, getZonasUsuario, getAdministradores, crearAdministrador, editarAdministrador, eliminarAdministrador, sincronizarUsuariosDesdeFirestore, ZONAS } from '../services/authService';
 import { setProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import { parseTarifaExcel } from '../services/tarifaParser';
 import { enviarPedidoEmail, isEmailConfigured } from '../services/emailService';
@@ -18,7 +18,7 @@ export default function ListaPedidos() {
   const navigate = useNavigate();
   const usuario = getUsuario();
   const esSuperAdmin = isSuperAdmin();
-  const zonaUsuario = getZonaUsuario();
+  const zonasUsuario = getZonasUsuario();
 
   const [filtro, setFiltro] = useState('');
   const [version, setVersion] = useState(0);
@@ -34,19 +34,21 @@ export default function ListaPedidos() {
   const [admins, setAdmins] = useState(() => getAdministradores());
   const [showCrearUsuario, setShowCrearUsuario] = useState(false);
   const [showListaUsuarios, setShowListaUsuarios] = useState(false);
-  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', password: '', nombre: '', zona: 'FAR001' });
+  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', password: '', nombre: '', zonas: [] });
   const [usuarioMsg, setUsuarioMsg] = useState(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
+  const [editandoUsuario, setEditandoUsuario] = useState(null); // { email, nombre, zonas: [] }
+  const [cambioPassword, setCambioPassword] = useState(null); // { email, password: '' }
 
   const pedidos = useMemo(() => {
     const todos = getPedidos().sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    // Filtrar por zona si no es superadmin
-    if (!esSuperAdmin && zonaUsuario) {
-      return todos.filter(p => p.zona === zonaUsuario);
+    // Filtrar por zonas si no es superadmin
+    if (!esSuperAdmin && zonasUsuario && zonasUsuario.length > 0) {
+      return todos.filter(p => zonasUsuario.includes(p.zona));
     }
     return todos;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, esSuperAdmin, zonaUsuario]);
+  }, [version, esSuperAdmin, zonasUsuario]);
 
   const stats = useMemo(() => {
     const p = pedidos;
@@ -167,11 +169,42 @@ export default function ListaPedidos() {
       if (!nuevoUsuario.email.trim() || !nuevoUsuario.password.trim() || !nuevoUsuario.nombre.trim()) {
         throw new Error('Todos los campos son obligatorios');
       }
-      await crearAdministrador(nuevoUsuario);
+      if (nuevoUsuario.zonas.length === 0) {
+        throw new Error('Selecciona al menos una zona');
+      }
+      await crearAdministrador({ ...nuevoUsuario, zona: nuevoUsuario.zonas });
       setAdmins(getAdministradores());
-      setNuevoUsuario({ email: '', password: '', nombre: '', zona: 'FAR001' });
+      setNuevoUsuario({ email: '', password: '', nombre: '', zonas: [] });
       setShowCrearUsuario(false);
-      setUsuarioMsg({ tipo: 'ok', texto: `Administrador ${nuevoUsuario.nombre} creado correctamente` });
+      setUsuarioMsg({ tipo: 'ok', texto: `Usuario ${nuevoUsuario.nombre} creado correctamente` });
+    } catch (err) {
+      setUsuarioMsg({ tipo: 'error', texto: err.message });
+    }
+  };
+
+  const handleGuardarEdicion = async () => {
+    if (!editandoUsuario) return;
+    setUsuarioMsg(null);
+    try {
+      if (editandoUsuario.zonas.length === 0) throw new Error('Selecciona al menos una zona');
+      await editarAdministrador(editandoUsuario.email, { zona: editandoUsuario.zonas, nombre: editandoUsuario.nombre });
+      setAdmins(getAdministradores());
+      setEditandoUsuario(null);
+      setUsuarioMsg({ tipo: 'ok', texto: 'Usuario actualizado' });
+    } catch (err) {
+      setUsuarioMsg({ tipo: 'error', texto: err.message });
+    }
+  };
+
+  const handleGuardarPassword = async () => {
+    if (!cambioPassword) return;
+    setUsuarioMsg(null);
+    try {
+      if (!cambioPassword.password.trim()) throw new Error('La contraseña no puede estar vacía');
+      await editarAdministrador(cambioPassword.email, { password: cambioPassword.password });
+      setAdmins(getAdministradores());
+      setCambioPassword(null);
+      setUsuarioMsg({ tipo: 'ok', texto: 'Contraseña actualizada' });
     } catch (err) {
       setUsuarioMsg({ tipo: 'error', texto: err.message });
     }
@@ -244,9 +277,9 @@ export default function ListaPedidos() {
                 Super Admin
               </span>
             )}
-            {!esSuperAdmin && zonaUsuario && (
+            {!esSuperAdmin && zonasUsuario && zonasUsuario.length > 0 && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                {zonaUsuario}
+                {zonasUsuario.join(', ')}
               </span>
             )}
           </div>
@@ -404,17 +437,26 @@ export default function ListaPedidos() {
                       className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Zona *</label>
-                    <select
-                      value={nuevoUsuario.zona}
-                      onChange={(e) => setNuevoUsuario(prev => ({ ...prev, zona: e.target.value }))}
-                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                    >
-                      {ZONAS.map(z => (
-                        <option key={z} value={z}>{z}</option>
-                      ))}
-                    </select>
+                  <div className="sm:col-span-2 lg:col-span-4">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Zonas * <span className="font-normal text-gray-400">(selecciona una o varias)</span></label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ZONAS.map(z => {
+                        const sel = nuevoUsuario.zonas.includes(z);
+                        return (
+                          <button
+                            key={z}
+                            type="button"
+                            onClick={() => setNuevoUsuario(prev => ({
+                              ...prev,
+                              zonas: sel ? prev.zonas.filter(x => x !== z) : [...prev.zonas, z]
+                            }))}
+                            className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors cursor-pointer ${sel ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}
+                          >
+                            {z}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-3">
@@ -452,25 +494,49 @@ export default function ListaPedidos() {
                         </tr>
                       </thead>
                       <tbody>
-                        {admins.map(a => (
-                          <tr key={a.email} className="border-t border-gray-100">
-                            <td className="px-3 py-2 font-medium text-gray-900">{a.nombre}</td>
-                            <td className="px-3 py-2 text-gray-600">{a.email}</td>
-                            <td className="px-3 py-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                                {a.zona}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <button
-                                onClick={() => setConfirmDeleteUser(a.email)}
-                                className="px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {admins.map(a => {
+                          const zonas = Array.isArray(a.zona) ? a.zona : [a.zona];
+                          return (
+                            <tr key={a.email} className="border-t border-gray-100">
+                              <td className="px-3 py-2 font-medium text-gray-900">{a.nombre}</td>
+                              <td className="px-3 py-2 text-gray-600">{a.email}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1">
+                                  {zonas.map(z => (
+                                    <span key={z} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                      {z}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => setEditandoUsuario({ email: a.email, nombre: a.nombre, zonas: [...zonas] })}
+                                    className="px-2 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 transition-colors cursor-pointer"
+                                    title="Editar zonas"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setCambioPassword({ email: a.email, password: '' })}
+                                    className="px-2 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors cursor-pointer"
+                                    title="Cambiar contraseña"
+                                  >
+                                    <KeyRound className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteUser(a.email)}
+                                    className="px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -484,8 +550,8 @@ export default function ListaPedidos() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <h2 className="text-lg font-semibold text-gray-800">
               Pedidos
-              {!esSuperAdmin && zonaUsuario && (
-                <span className="ml-2 text-sm font-normal text-gray-500">— Zona {zonaUsuario}</span>
+              {!esSuperAdmin && zonasUsuario && zonasUsuario.length > 0 && (
+                <span className="ml-2 text-sm font-normal text-gray-500">— {zonasUsuario.join(', ')}</span>
               )}
             </h2>
             <div className="relative w-full sm:w-72">
@@ -642,6 +708,101 @@ export default function ListaPedidos() {
                 className="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
               >
                 Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit user modal */}
+      {editandoUsuario && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+              <Pencil className="w-7 h-7 text-indigo-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1 text-center">Editar Usuario</h3>
+            <p className="text-gray-500 text-sm mb-4 text-center">{editandoUsuario.email}</p>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
+              <input
+                type="text"
+                value={editandoUsuario.nombre}
+                onChange={(e) => setEditandoUsuario(prev => ({ ...prev, nombre: e.target.value }))}
+                className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Zonas asignadas</label>
+              <div className="flex flex-wrap gap-1.5">
+                {ZONAS.map(z => {
+                  const sel = editandoUsuario.zonas.includes(z);
+                  return (
+                    <button
+                      key={z}
+                      type="button"
+                      onClick={() => setEditandoUsuario(prev => ({
+                        ...prev,
+                        zonas: sel ? prev.zonas.filter(x => x !== z) : [...prev.zonas, z]
+                      }))}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors cursor-pointer ${sel ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}
+                    >
+                      {z}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setEditandoUsuario(null)}
+                className="px-5 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleGuardarEdicion}
+                disabled={editandoUsuario.zonas.length === 0}
+                className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change password modal */}
+      {cambioPassword && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <div className="mx-auto w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-4">
+              <KeyRound className="w-7 h-7 text-amber-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1 text-center">Cambiar Contraseña</h3>
+            <p className="text-gray-500 text-sm mb-4 text-center">{cambioPassword.email}</p>
+            <input
+              type="text"
+              value={cambioPassword.password}
+              onChange={(e) => setCambioPassword(prev => ({ ...prev, password: e.target.value }))}
+              placeholder="Nueva contraseña"
+              className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm mb-4"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleGuardarPassword()}
+            />
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setCambioPassword(null)}
+                className="px-5 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleGuardarPassword}
+                disabled={!cambioPassword.password.trim()}
+                className="px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Guardar
               </button>
             </div>
           </div>
