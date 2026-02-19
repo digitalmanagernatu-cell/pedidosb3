@@ -1,8 +1,8 @@
-// URL de la Cloud Function proxy (evita problemas de CORS/mixed-content)
-// Después de desplegar con: firebase deploy --only functions
-// la URL será: https://sellforgeproxy-XXXXXXXXXX-uc.a.run.app
-// Actualiza esta constante con la URL que te dé el deploy.
-const PROXY_URL = 'https://sellforgeproxy-544695215064.us-central1.run.app';
+// URL del proxy PHP en tu WordPress (HTTPS).
+// Sube el archivo sellforge-proxy.php a la raíz de tu WordPress
+// y pon aquí la URL completa. Ejemplo:
+// const PROXY_URL = 'https://tu-dominio.com/sellforge-proxy.php';
+const PROXY_URL = 'https://natuaromatic.com/sellforge-proxy.php';
 
 /**
  * Envía un pedido a Sellforge a través de la Cloud Function proxy.
