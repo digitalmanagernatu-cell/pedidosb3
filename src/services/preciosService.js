@@ -40,15 +40,24 @@ export function determinarCategoriaEscalado(producto) {
   return null;
 }
 
-export function calcularPrecioUnitario(producto, cantidad) {
+/**
+ * Calcula el precio unitario de un producto según el escalado de su categoría.
+ * @param {Object} producto
+ * @param {number} cantidad - Cantidad de ESTE producto
+ * @param {number} [totalCategoria] - Total de unidades de toda la categoría (surtido variado).
+ *   Si se pasa, se usa para determinar el tramo de escalado.
+ *   Si no se pasa, se usa la cantidad del producto.
+ */
+export function calcularPrecioUnitario(producto, cantidad, totalCategoria) {
   const categoria = determinarCategoriaEscalado(producto);
 
   if (!categoria || cantidad <= 0) return producto.pvl;
 
   const escalados = TARIFAS[categoria];
+  const cantidadEscalado = totalCategoria != null ? totalCategoria : cantidad;
 
   for (let i = escalados.length - 1; i >= 0; i--) {
-    if (cantidad >= escalados[i].desde) {
+    if (cantidadEscalado >= escalados[i].desde) {
       return escalados[i].precio;
     }
   }
@@ -56,12 +65,18 @@ export function calcularPrecioUnitario(producto, cantidad) {
   return escalados[0].precio;
 }
 
-export function calcularAhorro(producto, cantidad) {
+/**
+ * Calcula el ahorro por escalado de un producto.
+ * @param {Object} producto
+ * @param {number} cantidad - Cantidad de ESTE producto
+ * @param {number} [totalCategoria] - Total de unidades de la categoría (surtido variado)
+ */
+export function calcularAhorro(producto, cantidad, totalCategoria) {
   const categoria = determinarCategoriaEscalado(producto);
   if (!categoria || cantidad <= 0) return 0;
 
   const precioBase = TARIFAS[categoria][0].precio;
-  const precioActual = calcularPrecioUnitario(producto, cantidad);
+  const precioActual = calcularPrecioUnitario(producto, cantidad, totalCategoria);
 
   return (precioBase - precioActual) * cantidad;
 }
@@ -77,11 +92,33 @@ export function getEscaladosCategoria(producto) {
 }
 
 /**
+ * Calcula el total de unidades seleccionadas por categoría de escalado.
+ * @param {Object} seleccion - { codigo: { cantidad, checked } }
+ * @param {Array} productos - Lista de productos
+ * @returns {Object} - { "GELES DE BAÑO 750ML": 120, "JABONES DE MANOS": 50, ... }
+ */
+export function calcularTotalesPorCategoriaEscalado(seleccion, productos) {
+  const totales = {};
+  Object.entries(seleccion).forEach(([codigo, { cantidad, checked }]) => {
+    if (!checked || cantidad <= 0) return;
+    const producto = productos.find(p => p.codigo === codigo);
+    if (!producto) return;
+    const cat = determinarCategoriaEscalado(producto);
+    if (!cat) return;
+    totales[cat] = (totales[cat] || 0) + cantidad;
+  });
+  return totales;
+}
+
+/**
  * Calcula el descuento 2x1 agrupando por categoría.
  * Por cada 2 unidades de productos con oferta en la misma categoría,
  * la unidad más barata es gratis.
  */
 export function calcularDescuento2x1(seleccion, productos) {
+  // Pre-calcular totales por categoría de escalado
+  const totalesCatEsc = calcularTotalesPorCategoriaEscalado(seleccion, productos);
+
   // Agrupar unidades de productos con oferta por categoría
   const categorias = {};
 
@@ -93,7 +130,9 @@ export function calcularDescuento2x1(seleccion, productos) {
     const cat = producto.categoria;
     if (!categorias[cat]) categorias[cat] = [];
 
-    const precioUnit = calcularPrecioUnitario(producto, cantidad);
+    const catEsc = determinarCategoriaEscalado(producto);
+    const totalCat = catEsc ? totalesCatEsc[catEsc] : undefined;
+    const precioUnit = calcularPrecioUnitario(producto, cantidad, totalCat);
     for (let i = 0; i < cantidad; i++) {
       categorias[cat].push(precioUnit);
     }

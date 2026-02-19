@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw } from 'lucide-react';
+import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
 import { getUsuario, logout } from '../services/authService';
 import { setProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
@@ -287,6 +287,7 @@ export default function ListaPedidos() {
                     <th className="px-3 py-3 font-semibold text-gray-700">Zona</th>
                     <th className="px-3 py-3 font-semibold text-gray-700 text-center">Productos</th>
                     <th className="px-3 py-3 font-semibold text-gray-700 text-right">Total</th>
+                    <th className="px-3 py-3 font-semibold text-gray-700 text-center">Sellforge</th>
                     <th className="px-3 py-3 font-semibold text-gray-700 text-center">Acciones</th>
                   </tr>
                 </thead>
@@ -303,6 +304,18 @@ export default function ListaPedidos() {
                       <td className="px-3 py-2.5 text-gray-600">{pedido.zona}</td>
                       <td className="px-3 py-2.5 text-center">{pedido.lineas?.length || 0}</td>
                       <td className="px-3 py-2.5 text-right font-bold text-gray-900">{pedido.totales?.total?.toFixed(2)} €</td>
+                      <td className="px-3 py-2.5 text-center">
+                        {pedido.enviadoSellforge ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700" title={`Enviado el ${formatFecha(pedido.enviadoSellforge.fecha)}`}>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Enviado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                            Pendiente
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button

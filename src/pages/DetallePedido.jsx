@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Send } from 'lucide-react';
-import { getPedidoById } from '../services/pedidosService';
+import { getPedidoById, actualizarPedido } from '../services/pedidosService';
 import { enviarPedidoSellforge } from '../services/sellforgeService';
 
 function formatFecha(iso) {
@@ -14,14 +14,25 @@ export default function DetallePedido() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const pedido = useMemo(() => getPedidoById(id), [id]);
+  const [pedido, setPedido] = useState(() => getPedidoById(id));
   const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
 
+  const yaEnviado = !!pedido?.enviadoSellforge;
+
   const handleEnviarSellforge = async () => {
-    if (sfStatus === 'enviando') return;
+    if (sfStatus === 'enviando' || yaEnviado) return;
     setSfStatus('enviando');
     try {
       const result = await enviarPedidoSellforge(pedido);
+      const datos = {
+        enviadoSellforge: {
+          fecha: new Date().toISOString(),
+          codigo: result.code || '',
+          total: result.total || ''
+        }
+      };
+      actualizarPedido(pedido.id, datos);
+      setPedido(prev => ({ ...prev, ...datos }));
       setSfStatus({ tipo: 'ok', texto: `Enviado a Sellforge. Código: ${result.code}` });
     } catch (err) {
       setSfStatus({ tipo: 'error', texto: err.message });
@@ -61,11 +72,15 @@ export default function DetallePedido() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleEnviarSellforge}
-              disabled={sfStatus === 'enviando'}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
+              disabled={sfStatus === 'enviando' || yaEnviado}
+              className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed ${
+                yaEnviado
+                  ? 'bg-gray-400 text-white'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300'
+              }`}
             >
               <Send className="w-4 h-4" />
-              {sfStatus === 'enviando' ? 'Enviando...' : 'Enviar a Sellforge'}
+              {yaEnviado ? 'Ya enviado a Sellforge' : sfStatus === 'enviando' ? 'Enviando...' : 'Enviar a Sellforge'}
             </button>
             <button
               onClick={handlePrint}
@@ -77,6 +92,15 @@ export default function DetallePedido() {
           </div>
         </div>
       </header>
+
+      {yaEnviado && !sfStatus && (
+        <div className="max-w-4xl mx-auto px-4 mt-4 no-print">
+          <div className="p-3 rounded-lg text-sm bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Enviado a Sellforge el {formatFecha(pedido.enviadoSellforge.fecha)}
+            {pedido.enviadoSellforge.codigo && ` — Código: ${pedido.enviadoSellforge.codigo}`}
+          </div>
+        </div>
+      )}
 
       {sfStatus && sfStatus !== 'enviando' && (
         <div className={`max-w-4xl mx-auto px-4 mt-4 no-print`}>

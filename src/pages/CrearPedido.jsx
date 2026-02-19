@@ -4,7 +4,7 @@ import { Settings, Check } from 'lucide-react';
 import { getProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
-import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1 } from '../services/preciosService';
+import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado } from '../services/preciosService';
 import { guardarPedido } from '../services/pedidosService';
 
 export default function CrearPedido() {
@@ -32,6 +32,11 @@ export default function CrearPedido() {
   const [modal, setModal] = useState(null);
   const [errores, setErrores] = useState({});
 
+  const totalesCatEscalado = useMemo(
+    () => calcularTotalesPorCategoriaEscalado(seleccion, productos),
+    [seleccion, productos]
+  );
+
   const totales = useMemo(() => {
     let subtotal = 0;
     let ahorro = 0;
@@ -41,9 +46,11 @@ export default function CrearPedido() {
       if (!checked || cantidad <= 0) return;
       const producto = productos.find(p => p.codigo === codigo);
       if (!producto) return;
-      const precioUnit = calcularPrecioUnitario(producto, cantidad);
+      const catEsc = determinarCategoriaEscalado(producto);
+      const totalCat = catEsc ? totalesCatEscalado[catEsc] : undefined;
+      const precioUnit = calcularPrecioUnitario(producto, cantidad, totalCat);
       subtotal += precioUnit * cantidad;
-      ahorro += calcularAhorro(producto, cantidad);
+      ahorro += calcularAhorro(producto, cantidad, totalCat);
       totalProductos++;
     });
 
@@ -53,7 +60,7 @@ export default function CrearPedido() {
     const total = subtotalNeto + iva;
 
     return { totalProductos, subtotal: subtotalNeto, ahorro, descuento2x1, iva, total };
-  }, [seleccion, productos]);
+  }, [seleccion, productos, totalesCatEscalado]);
 
   const avisosCajas = useMemo(() => {
     const porCategoria = {};
@@ -106,14 +113,16 @@ export default function CrearPedido() {
       if (!checked || cantidad <= 0) return;
       const producto = productos.find(p => p.codigo === codigo);
       if (!producto) return;
-      const precioUnitario = calcularPrecioUnitario(producto, cantidad);
+      const catEsc = determinarCategoriaEscalado(producto);
+      const totalCat = catEsc ? totalesCatEscalado[catEsc] : undefined;
+      const precioUnitario = calcularPrecioUnitario(producto, cantidad, totalCat);
       lineas.push({
         codigo: producto.codigo,
         referencia: producto.referencia,
         cantidad,
         precio_unitario: precioUnitario,
         subtotal: precioUnitario * cantidad,
-        tiene_escalado: calcularAhorro(producto, cantidad) > 0,
+        tiene_escalado: calcularAhorro(producto, cantidad, totalCat) > 0,
         tiene_promo_2x1: !!producto.oferta
       });
     });

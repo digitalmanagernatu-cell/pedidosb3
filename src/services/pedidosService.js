@@ -61,6 +61,16 @@ export function guardarPedido(pedido) {
   return nuevoPedido;
 }
 
+export function actualizarPedido(id, cambios) {
+  const pedidos = getLocal();
+  const idx = pedidos.findIndex(p => p.id === Number(id));
+  if (idx === -1) return null;
+  pedidos[idx] = { ...pedidos[idx], ...cambios };
+  setLocal(pedidos);
+  firestoreGuardar(pedidos[idx]);
+  return pedidos[idx];
+}
+
 export function eliminarPedido(id) {
   const pedidos = getLocal().filter(p => p.id !== Number(id));
   setLocal(pedidos);
