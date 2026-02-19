@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, Printer, Send } from 'lucide-react';
 import { getPedidoById } from '../services/pedidosService';
+import { enviarPedidoSellforge } from '../services/sellforgeService';
 
 function formatFecha(iso) {
   const d = new Date(iso);
@@ -14,6 +15,18 @@ export default function DetallePedido() {
   const navigate = useNavigate();
 
   const pedido = useMemo(() => getPedidoById(id), [id]);
+  const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
+
+  const handleEnviarSellforge = async () => {
+    if (sfStatus === 'enviando') return;
+    setSfStatus('enviando');
+    try {
+      const result = await enviarPedidoSellforge(pedido);
+      setSfStatus({ tipo: 'ok', texto: `Enviado a Sellforge. Código: ${result.code}` });
+    } catch (err) {
+      setSfStatus({ tipo: 'error', texto: err.message });
+    }
+  };
 
   if (!pedido) {
     return (
@@ -47,6 +60,14 @@ export default function DetallePedido() {
           </button>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleEnviarSellforge}
+              disabled={sfStatus === 'enviando'}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              <Send className="w-4 h-4" />
+              {sfStatus === 'enviando' ? 'Enviando...' : 'Enviar a Sellforge'}
+            </button>
+            <button
               onClick={handlePrint}
               className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
             >
@@ -56,6 +77,17 @@ export default function DetallePedido() {
           </div>
         </div>
       </header>
+
+      {sfStatus && sfStatus !== 'enviando' && (
+        <div className={`max-w-4xl mx-auto px-4 mt-4 no-print`}>
+          <div className={`p-3 rounded-lg text-sm ${
+            sfStatus.tipo === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' :
+            'bg-red-50 text-red-700 border border-red-200'
+          }`}>
+            {sfStatus.texto}
+          </div>
+        </div>
+      )}
 
       <main className="max-w-4xl mx-auto px-4 py-6 print-area">
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
