@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, AlertTriangle } from 'lucide-react';
-import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria } from '../services/preciosService';
+import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado } from '../services/preciosService';
 
 function EscaladoBadge({ producto }) {
   const [mostrar, setMostrar] = useState(false);
@@ -42,6 +42,11 @@ function EscaladoBadge({ producto }) {
 
 export default function TablaProductos({ productos, seleccion, onSeleccionChange, avisosCajas = {} }) {
   const [busqueda, setBusqueda] = useState('');
+
+  const totalesCatEscalado = useMemo(
+    () => calcularTotalesPorCategoriaEscalado(seleccion, productos),
+    [seleccion, productos]
+  );
 
   const productosFiltrados = useMemo(() => {
     if (!busqueda.trim()) return productos;
@@ -143,9 +148,11 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
               const sel = seleccion[producto.codigo];
               const isChecked = !!sel?.checked;
               const cantidad = sel?.cantidad || 0;
-              const precioUnit = isChecked ? calcularPrecioUnitario(producto, cantidad) : producto.pvl;
+              const catEsc = determinarCategoriaEscalado(producto);
+              const totalCat = catEsc ? totalesCatEscalado[catEsc] : undefined;
+              const precioUnit = isChecked ? calcularPrecioUnitario(producto, cantidad, totalCat) : producto.pvl;
               const subtotal = isChecked ? precioUnit * cantidad : 0;
-              const ahorro = isChecked ? calcularAhorro(producto, cantidad) : 0;
+              const ahorro = isChecked ? calcularAhorro(producto, cantidad, totalCat) : 0;
 
               return (
                 <tr
