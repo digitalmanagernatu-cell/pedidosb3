@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Lock, AlertCircle } from 'lucide-react';
-import { login, validarEmailNatuaromatic } from '../services/authService';
+import { login, sincronizarUsuariosDesdeFirestore } from '../services/authService';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -9,7 +9,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -18,10 +18,8 @@ export default function Login() {
       return;
     }
 
-    if (!validarEmailNatuaromatic(email)) {
-      setError('El email debe terminar en @natuaromatic.com');
-      return;
-    }
+    // Sincronizar usuarios desde Firestore antes de intentar login
+    await sincronizarUsuariosDesdeFirestore();
 
     const usuario = login(email, password);
     if (!usuario) {
