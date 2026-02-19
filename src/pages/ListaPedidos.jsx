@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List, Pencil, KeyRound } from 'lucide-react';
+import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List, Pencil, KeyRound, X, Calendar } from 'lucide-react';
 import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
 import { getUsuario, logout, isSuperAdmin, getZonasUsuario, getAdministradores, crearAdministrador, editarAdministrador, eliminarAdministrador, sincronizarUsuariosDesdeFirestore, ZONAS } from '../services/authService';
 import { setProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
@@ -21,6 +21,9 @@ export default function ListaPedidos() {
   const zonasUsuario = getZonasUsuario();
 
   const [filtro, setFiltro] = useState('');
+  const [filtroCliente, setFiltroCliente] = useState(null); // ID/CIF clickado
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
   const [version, setVersion] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [emailModal, setEmailModal] = useState(null);
@@ -50,8 +53,25 @@ export default function ListaPedidos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, esSuperAdmin, zonasUsuario]);
 
+  const hayFiltroFechas = fechaDesde || fechaHasta;
+
+  // Pedidos filtrados por fecha (para estadísticas y listado)
+  const pedidosFechaFiltrados = useMemo(() => {
+    if (!hayFiltroFechas) return pedidos;
+    return pedidos.filter(p => {
+      const f = new Date(p.fecha);
+      if (fechaDesde && f < new Date(fechaDesde)) return false;
+      if (fechaHasta) {
+        const hasta = new Date(fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        if (f > hasta) return false;
+      }
+      return true;
+    });
+  }, [pedidos, fechaDesde, fechaHasta, hayFiltroFechas]);
+
   const stats = useMemo(() => {
-    const p = pedidos;
+    const p = hayFiltroFechas ? pedidosFechaFiltrados : pedidos;
     const ahora = new Date();
     const mesActual = ahora.getMonth();
     const anioActual = ahora.getFullYear();
@@ -62,21 +82,37 @@ export default function ListaPedidos() {
     return {
       totalPedidos: p.length,
       totalFacturado: p.reduce((sum, pd) => sum + (pd.totales?.total || 0), 0),
-      pedidosMes: pedidosMes.length
+      pedidosMes: pedidosMes.length,
+      filtrado: !!hayFiltroFechas
     };
-  }, [pedidos]);
+  }, [pedidos, pedidosFechaFiltrados, hayFiltroFechas]);
 
   const pedidosFiltrados = useMemo(() => {
-    if (!filtro.trim()) return pedidos;
-    const t = filtro.toLowerCase();
-    return pedidos.filter(p =>
-      p.codigo_cliente?.toLowerCase().includes(t) ||
-      p.nombre_cliente?.toLowerCase().includes(t) ||
-      p.cif?.toLowerCase().includes(t) ||
-      p.zona?.toLowerCase().includes(t) ||
-      String(p.id).includes(t)
-    );
-  }, [pedidos, filtro]);
+    let resultado = pedidosFechaFiltrados;
+
+    // Filtro por cliente clickado
+    if (filtroCliente) {
+      const fc = filtroCliente.toLowerCase();
+      resultado = resultado.filter(p =>
+        p.codigo_cliente?.toLowerCase() === fc ||
+        p.cif?.toLowerCase() === fc
+      );
+    }
+
+    // Filtro de búsqueda libre
+    if (filtro.trim()) {
+      const t = filtro.toLowerCase();
+      resultado = resultado.filter(p =>
+        p.codigo_cliente?.toLowerCase().includes(t) ||
+        p.nombre_cliente?.toLowerCase().includes(t) ||
+        p.cif?.toLowerCase().includes(t) ||
+        p.zona?.toLowerCase().includes(t) ||
+        String(p.id).includes(t)
+      );
+    }
+
+    return resultado;
+  }, [pedidosFechaFiltrados, filtro, filtroCliente]);
 
   const handleLogout = () => {
     logout();
@@ -566,6 +602,54 @@ export default function ListaPedidos() {
             </div>
           </div>
 
+          {/* Filtro de fechas */}
+          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-gray-600">Desde:</label>
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 rounded-md text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-gray-600">Hasta:</label>
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 rounded-md text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            {hayFiltroFechas && (
+              <button
+                onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+                className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                Limpiar fechas
+              </button>
+            )}
+          </div>
+
+          {/* Chip de filtro activo por cliente */}
+          {filtroCliente && (
+            <div className="flex items-center gap-2 mb-4">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                Filtrando por: <strong>{filtroCliente}</strong>
+                <button
+                  onClick={() => setFiltroCliente(null)}
+                  className="ml-1 p-0.5 rounded-full hover:bg-blue-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+              <span className="text-xs text-gray-500">{pedidosFiltrados.length} pedido(s)</span>
+            </div>
+          )}
+
           {pedidosFiltrados.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               {pedidos.length === 0 ? 'No hay pedidos registrados' : 'No se encontraron resultados'}
@@ -575,7 +659,6 @@ export default function ListaPedidos() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-left">
-                    <th className="px-3 py-3 font-semibold text-gray-700">ID</th>
                     <th className="px-3 py-3 font-semibold text-gray-700">Fecha</th>
                     <th className="px-3 py-3 font-semibold text-gray-700">ID/CIF</th>
                     <th className="px-3 py-3 font-semibold text-gray-700">Nombre</th>
@@ -587,68 +670,76 @@ export default function ListaPedidos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pedidosFiltrados.map((pedido, idx) => (
-                    <tr key={pedido.id} className={`border-t border-gray-100 hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                      <td className="px-3 py-2.5 font-mono text-xs text-gray-600">#{pedido.id}</td>
-                      <td className="px-3 py-2.5 text-gray-700">{formatFecha(pedido.fecha)}</td>
-                      <td className="px-3 py-2.5 font-medium text-gray-900">
-                        {pedido.codigo_cliente}
-                        {pedido.cif && !pedido.nombre_cliente && <span className="text-gray-500 text-xs ml-1">({pedido.cif})</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-600">{pedido.nombre_cliente || '—'}</td>
-                      <td className="px-3 py-2.5">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          {pedido.zona}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-center">{pedido.lineas?.length || 0}</td>
-                      <td className="px-3 py-2.5 text-right font-bold text-gray-900">{pedido.totales?.total?.toFixed(2)} €</td>
-                      <td className="px-3 py-2.5 text-center">
-                        {pedido.enviadoSellforge ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700" title={`Enviado el ${formatFecha(pedido.enviadoSellforge.fecha)}`}>
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Enviado
+                  {pedidosFiltrados.map((pedido, idx) => {
+                    const clienteId = pedido.codigo_cliente || pedido.cif || '';
+                    return (
+                      <tr key={pedido.id} className={`border-t border-gray-100 hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                        <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{formatFecha(pedido.fecha)}</td>
+                        <td className="px-3 py-2.5 font-medium">
+                          <button
+                            onClick={() => setFiltroCliente(clienteId)}
+                            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left"
+                            title={`Filtrar pedidos de ${clienteId}`}
+                          >
+                            {pedido.codigo_cliente}
+                            {pedido.cif && !pedido.nombre_cliente && <span className="text-gray-400 text-xs ml-1">({pedido.cif})</span>}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600">{pedido.nombre_cliente || '—'}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            {pedido.zona}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                            Pendiente
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => navigate(`/admin/pedido/${pedido.id}`)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            Ver
-                          </button>
-                          <button
-                            onClick={() => handlePrint(pedido)}
-                            className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer"
-                          >
-                            PDF
-                          </button>
-                          <button
-                            onClick={() => { setEmailModal(pedido.id); setEmailInput(''); setEmailStatus(null); }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100 transition-colors cursor-pointer"
-                            title="Enviar por email"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                          </button>
-                          {esSuperAdmin && (
-                            <button
-                              onClick={() => setConfirmDelete(pedido.id)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">{pedido.lineas?.length || 0}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-gray-900">{pedido.totales?.total?.toFixed(2)} €</td>
+                        <td className="px-3 py-2.5 text-center">
+                          {pedido.enviadoSellforge ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700" title={`Enviado el ${formatFecha(pedido.enviadoSellforge.fecha)}`}>
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Enviado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                              Pendiente
+                            </span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => navigate(`/admin/pedido/${pedido.id}`)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Ver
+                            </button>
+                            <button
+                              onClick={() => handlePrint(pedido)}
+                              className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer"
+                            >
+                              PDF
+                            </button>
+                            <button
+                              onClick={() => { setEmailModal(pedido.id); setEmailInput(''); setEmailStatus(null); }}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100 transition-colors cursor-pointer"
+                              title="Enviar por email"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </button>
+                            {esSuperAdmin && (
+                              <button
+                                onClick={() => setConfirmDelete(pedido.id)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
