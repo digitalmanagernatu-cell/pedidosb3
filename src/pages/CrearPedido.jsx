@@ -6,7 +6,7 @@ import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
 import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado } from '../services/preciosService';
 import { guardarPedido } from '../services/pedidosService';
-import { ZONAS } from '../services/authService';
+import { CIUDADES_ZONAS } from '../services/authService';
 
 export default function CrearPedido() {
   const navigate = useNavigate();
@@ -28,7 +28,8 @@ export default function CrearPedido() {
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
   const [nombreCliente, setNombreCliente] = useState('');
-  const [zona, setZona] = useState('');
+  const [ciudadSeleccionada, setCiudadSeleccionada] = useState('');
+  const zona = CIUDADES_ZONAS.find(c => c.ciudad === ciudadSeleccionada)?.zona || '';
   const [seleccion, setSeleccion] = useState({});
   const [modal, setModal] = useState(null);
   const [errores, setErrores] = useState({});
@@ -93,7 +94,7 @@ export default function CrearPedido() {
     const errs = {};
     if (!codigoCliente.trim()) errs.codigoCliente = 'El código de cliente o CIF/NIF es obligatorio';
     if (!nombreCliente.trim()) errs.nombreCliente = 'El nombre del cliente es obligatorio';
-    if (!zona) errs.zona = 'Selecciona una zona';
+    if (!ciudadSeleccionada) errs.zona = 'Selecciona una zona';
     if (totales.totalProductos === 0) errs.productos = 'Selecciona al menos un producto';
     if (Object.keys(avisosCajas).length > 0) {
       const cats = Object.entries(avisosCajas)
@@ -102,7 +103,7 @@ export default function CrearPedido() {
       errs.cajas = `Cajas incompletas: ${cats}`;
     }
     return errs;
-  }, [codigoCliente, nombreCliente, zona, totales.totalProductos, avisosCajas]);
+  }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, avisosCajas]);
 
   const handleCrearPedido = () => {
     const errs = validar();
@@ -149,7 +150,7 @@ export default function CrearPedido() {
     setModal(null);
     setCodigoCliente('');
     setNombreCliente('');
-    setZona('');
+    setCiudadSeleccionada('');
     setSeleccion({});
     setErrores({});
   };
@@ -200,13 +201,13 @@ export default function CrearPedido() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Zona *</label>
               <select
-                value={zona}
-                onChange={(e) => setZona(e.target.value)}
+                value={ciudadSeleccionada}
+                onChange={(e) => setCiudadSeleccionada(e.target.value)}
                 className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white ${errores.zona ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
               >
                 <option value="">Selecciona zona...</option>
-                {ZONAS.map(z => (
-                  <option key={z} value={z}>{z}</option>
+                {CIUDADES_ZONAS.map(c => (
+                  <option key={c.ciudad} value={c.ciudad}>{c.ciudad}</option>
                 ))}
               </select>
               {errores.zona && <p className="text-red-500 text-xs mt-1">{errores.zona}</p>}
