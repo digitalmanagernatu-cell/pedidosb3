@@ -4,6 +4,36 @@ import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore'
 // Zonas válidas
 export const ZONAS = Array.from({ length: 13 }, (_, i) => `FAR${String(i + 1).padStart(3, '0')}`);
 
+// Mapeo ciudad/región → zona FAR (para el desplegable de crear pedido)
+export const CIUDADES_ZONAS = [
+  { ciudad: 'CATALUÑA', zona: 'FAR001' },
+  { ciudad: 'EXTREMADURA', zona: 'FAR002' },
+  { ciudad: 'CÓRDOBA', zona: 'FAR002' },
+  { ciudad: 'CASTILLA LA MANCHA', zona: 'FAR003' },
+  { ciudad: 'MADRID (Ávila, Segovia)', zona: 'FAR004' },
+  { ciudad: 'ÁVILA', zona: 'FAR004' },
+  { ciudad: 'SEGOVIA', zona: 'FAR004' },
+  { ciudad: 'SEVILLA', zona: 'FAR005' },
+  { ciudad: 'CÁDIZ', zona: 'FAR005' },
+  { ciudad: 'HUELVA', zona: 'FAR005' },
+  { ciudad: 'MADRID (Guadalajara)', zona: 'FAR006' },
+  { ciudad: 'GUADALAJARA', zona: 'FAR006' },
+  { ciudad: 'VALENCIA', zona: 'FAR007' },
+  { ciudad: 'CASTELLÓN', zona: 'FAR007' },
+  { ciudad: 'GALICIA', zona: 'FAR008' },
+  { ciudad: 'LEÓN', zona: 'FAR008' },
+  { ciudad: 'MURCIA', zona: 'FAR009' },
+  { ciudad: 'ARAGÓN', zona: 'FAR010' },
+  { ciudad: 'NAVARRA', zona: 'FAR010' },
+  { ciudad: 'LA RIOJA', zona: 'FAR010' },
+  { ciudad: 'PAÍS VASCO', zona: 'FAR011' },
+  { ciudad: 'ÁLAVA', zona: 'FAR011' },
+  { ciudad: 'JAÉN', zona: 'FAR013' },
+  { ciudad: 'GRANADA', zona: 'FAR013' },
+  { ciudad: 'MÁLAGA', zona: 'FAR013' },
+  { ciudad: 'OTRA', zona: 'FAR012' },
+];
+
 // Super administradores (hardcoded, no se pueden borrar)
 const SUPER_ADMINS = [
   { email: 'admin@natuaromatic.com', password: 'betres2026', nombre: 'Administrador' },
