@@ -37,7 +37,7 @@ export function parseTarifaExcel(buffer) {
     if (colA === 'CODG' || colA.startsWith('TARIFA')) continue;
 
     // Detect offer in column H (e.g. "2X1")
-    if (colH && /^\d+[xX]\d+$/.test(colH) && colA && colC && pvlNum != null) {
+    if (colH && /^\d+[xX]\d+$/.test(colH) && colA && colC) {
       ofertaActual = colH.toUpperCase();
     }
 
@@ -54,8 +54,8 @@ export function parseTarifaExcel(buffer) {
     // Escalado threshold row (">X UNID" pattern) — skip
     if (colA.includes('>') || (typeof colE === 'string' && String(colE).includes('>'))) continue;
 
-    // Product row: has code, reference, and numeric PVL
-    if (colA && colC && pvlNum != null) {
+    // Product row: has code and reference (PVL puede ser null para expositores)
+    if (colA && colC) {
       const ean = colB ? colB.replace(/\s+/g, '') : '';
       const pvpRec = parseNumero(colM);
       const udCaja = parseNumero(colD);
@@ -65,7 +65,7 @@ export function parseTarifaExcel(buffer) {
         ean,
         referencia: colC,
         udCaja,
-        pvl: pvlNum,
+        pvl: pvlNum ?? 0,
         pvpRec,
         categoria: categoriaActual || 'OTROS'
       };
@@ -78,9 +78,6 @@ export function parseTarifaExcel(buffer) {
       }
 
       productos.push(producto);
-    } else if (colA && colC) {
-      // Has code and name but no valid price — track as skipped
-      filasDescartadas.push({ fila: i + 1, codigo: colA, referencia: colC, pvl: colE });
     }
   }
 
