@@ -4,7 +4,7 @@ import { Settings, Check } from 'lucide-react';
 import { getProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
-import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado } from '../services/preciosService';
+import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado, esCategoríaSinSurtido, esCategoríaFacial, getSubgrupoFacial } from '../services/preciosService';
 import { guardarPedido } from '../services/pedidosService';
 import { CIUDADES_ZONAS } from '../services/authService';
 
@@ -65,7 +65,7 @@ export default function CrearPedido() {
   }, [seleccion, productos, totalesCatEscalado]);
 
   const avisosCajas = useMemo(() => {
-    const porCategoria = {};
+    const grupos = {}; // clave → { total, udCaja, label }
 
     Object.entries(seleccion).forEach(([codigo, { cantidad, checked }]) => {
       if (!checked || cantidad <= 0) return;
@@ -73,17 +73,36 @@ export default function CrearPedido() {
       if (!producto || !producto.udCaja || producto.udCaja <= 1) return;
 
       const cat = producto.categoria;
-      if (!porCategoria[cat]) {
-        porCategoria[cat] = { total: 0, udCaja: producto.udCaja };
+      let clave;
+      let label;
+
+      if (esCategoríaSinSurtido(cat)) {
+        // Geles, Jabones, Champús: cada referencia por separado
+        clave = `ref:${producto.codigo}`;
+        label = `${cat} — ${producto.referencia}`;
+      } else if (esCategoríaFacial(cat)) {
+        // Línea Facial: subgrupos (sérum, crema, limpieza)
+        const subgrupo = getSubgrupoFacial(producto.referencia);
+        clave = `facial:${subgrupo}`;
+        const nombres = { SERUM: 'Sérum', CREMA: 'Cremas', LIMPIEZA: 'Limpieza Facial', OTROS_FACIAL: 'Facial - Otros' };
+        label = `${cat} — ${nombres[subgrupo] || subgrupo}`;
+      } else {
+        // Resto: surtido por categoría
+        clave = `cat:${cat}`;
+        label = cat;
       }
-      porCategoria[cat].total += cantidad;
+
+      if (!grupos[clave]) {
+        grupos[clave] = { total: 0, udCaja: producto.udCaja, label };
+      }
+      grupos[clave].total += cantidad;
     });
 
     const avisos = {};
-    Object.entries(porCategoria).forEach(([cat, { total, udCaja }]) => {
+    Object.entries(grupos).forEach(([clave, { total, udCaja, label }]) => {
       const resto = total % udCaja;
       if (resto > 0) {
-        avisos[cat] = { total, udCaja, faltan: udCaja - resto };
+        avisos[clave] = { total, udCaja, faltan: udCaja - resto, label };
       }
     });
 
@@ -97,8 +116,8 @@ export default function CrearPedido() {
     if (!ciudadSeleccionada) errs.zona = 'Selecciona una zona';
     if (totales.totalProductos === 0) errs.productos = 'Selecciona al menos un producto';
     if (Object.keys(avisosCajas).length > 0) {
-      const cats = Object.entries(avisosCajas)
-        .map(([cat, { faltan, udCaja }]) => `${cat}: faltan ${faltan} uds (caja de ${udCaja})`)
+      const cats = Object.values(avisosCajas)
+        .map(({ label, faltan, udCaja }) => `${label}: faltan ${faltan} uds (caja de ${udCaja})`)
         .join('; ');
       errs.cajas = `Cajas incompletas: ${cats}`;
     }
