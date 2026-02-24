@@ -68,6 +68,7 @@ exports.sellforgeProxy = onRequest({ cors: true }, async (req, res) => {
       customers_name: pedido.nombre_cliente || pedido.codigo_cliente,
       date_order: Math.floor(new Date(pedido.fecha).getTime() / 1000),
       customers_order_code: String(pedido.id),
+      user: pedido.zona || '',
       notes: `Pedido Betrés ON #${pedido.id} | Zona: ${pedido.zona}`,
       lines: pedido.lineas.map((l) => ({
         products_code: l.codigo,

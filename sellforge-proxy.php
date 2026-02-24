@@ -186,6 +186,7 @@ $data = json_encode([
     'customers_name'       => (string)($input['nombre_cliente'] ?: $input['codigo_cliente']),
     'date_order'           => (int)(strtotime($input['fecha'] ?? 'now')),
     'customers_order_code' => (string)($input['id'] ?? ''),
+    'user'                 => (string)($input['zona'] ?? ''),
     'notes'                => 'Pedido Betrés ON #' . ($input['id'] ?? '') . ' | Zona: ' . ($input['zona'] ?? ''),
     'lines'                => $lines,
 ]);
