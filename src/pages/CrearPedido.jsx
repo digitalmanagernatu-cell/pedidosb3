@@ -31,6 +31,7 @@ export default function CrearPedido() {
   const [ciudadSeleccionada, setCiudadSeleccionada] = useState('');
   const zona = CIUDADES_ZONAS.find(c => c.ciudad === ciudadSeleccionada)?.zona || '';
   const [seleccion, setSeleccion] = useState({});
+  const [comentarios, setComentarios] = useState('');
   const [modal, setModal] = useState(null);
   const [errores, setErrores] = useState({});
 
@@ -152,6 +153,7 @@ export default function CrearPedido() {
       codigo_cliente: codigoCliente.trim(),
       nombre_cliente: nombreCliente.trim(),
       zona,
+      comentarios: comentarios.trim(),
       lineas,
       totales: {
         subtotal: totales.subtotal,
@@ -171,6 +173,7 @@ export default function CrearPedido() {
     setNombreCliente('');
     setCiudadSeleccionada('');
     setSeleccion({});
+    setComentarios('');
     setErrores({});
   };
 
@@ -247,6 +250,17 @@ export default function CrearPedido() {
             seleccion={seleccion}
             onSeleccionChange={setSeleccion}
             avisosCajas={avisosCajas}
+          />
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-5 mt-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">Comentarios</h2>
+          <textarea
+            value={comentarios}
+            onChange={(e) => setComentarios(e.target.value)}
+            placeholder="Añade observaciones o comentarios al pedido..."
+            rows={3}
+            className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y text-sm"
           />
         </div>
       </main>
