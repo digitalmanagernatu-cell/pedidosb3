@@ -85,28 +85,5 @@ export function parseTarifaExcel(buffer) {
 }
 
 function normalizarCategoria(texto) {
-  const t = texto.toUpperCase().trim();
-
-  if (t.includes('MIKADO') && (t.includes('925') || t.includes('AMBIENTACION') || t.includes('AMBIENTACIÓN'))) {
-    return 'AMBIENTACIÓN - MIKADOS 925ML';
-  }
-
-  const mapeo = {
-    'AMBIENTACION': 'AMBIENTACIÓN',
-    'PERFUMERIA': 'PERFUMERÍA',
-    'GELES 750ML.': 'GELES DE BAÑO 750ML',
-    'GELES 750ML': 'GELES DE BAÑO 750ML',
-    'GELES 1L.': 'GELES DE BAÑO 1L',
-    'GELES 1L': 'GELES DE BAÑO 1L',
-    'JABONES': 'JABONES DE MANOS',
-    'CHAMPUS': 'CHAMPÚS',
-    'LINEA FACIAL': 'LÍNEA FACIAL'
-  };
-
-  // Try exact match first
-  for (const [key, val] of Object.entries(mapeo)) {
-    if (t === key || t.startsWith(key)) return val;
-  }
-
-  return t;
+  return texto.toUpperCase().trim();
 }

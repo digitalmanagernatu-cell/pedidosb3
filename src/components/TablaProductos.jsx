@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, AlertTriangle } from 'lucide-react';
-import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado } from '../services/preciosService';
+import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado, esCategoríaSinSurtido, esCategoríaFacial, getSubgrupoFacial } from '../services/preciosService';
 
 function EscaladoBadge({ producto }) {
   const [mostrar, setMostrar] = useState(false);
@@ -126,17 +126,26 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
           <tbody>
             {productosAgrupados.map((item, idx) => {
               if (item.tipo === 'categoria') {
-                const aviso = avisosCajas[item.nombre];
+                // Recoger todos los avisos que pertenecen a esta categoría
+                const avisosCategoria = Object.entries(avisosCajas).filter(([clave]) =>
+                  clave === `cat:${item.nombre}` ||
+                  clave.startsWith(`ref:`) && avisosCajas[clave].label?.startsWith(item.nombre) ||
+                  clave.startsWith(`facial:`) && avisosCajas[clave].label?.startsWith(item.nombre)
+                );
                 return (
                   <tr key={`cat-${item.nombre}`} className="bg-black">
                     <td colSpan={9} className="px-4 py-2 text-white text-sm tracking-wide">
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-bold">{item.nombre}</span>
-                        {aviso && (
-                          <span className="flex items-center gap-1.5 text-yellow-300 text-xs font-normal">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {aviso.total} uds — Faltan {aviso.faltan} para completar caja (caja de {aviso.udCaja})
-                          </span>
+                        {avisosCategoria.length > 0 && (
+                          <div className="flex flex-col items-end gap-0.5">
+                            {avisosCategoria.map(([clave, aviso]) => (
+                              <span key={clave} className="flex items-center gap-1.5 text-yellow-300 text-xs font-normal">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                {aviso.label}: {aviso.total} uds — Faltan {aviso.faltan} para completar caja (caja de {aviso.udCaja})
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </td>

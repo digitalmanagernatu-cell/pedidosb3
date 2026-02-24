@@ -1,5 +1,18 @@
+// Mapeo flexible: varias posibles cabeceras del Excel → misma tarifa de escalado
+const ESCALADO_ALIASES = {
+  'GELES 750ML': 'GELES 750ML',
+  'GELES 750ML.': 'GELES 750ML',
+  'GELES DE BAÑO 750ML': 'GELES 750ML',
+  'GELES 1L': 'GELES 1L',
+  'GELES 1L.': 'GELES 1L',
+  'GELES DE BAÑO 1L': 'GELES 1L',
+  'HAIR & BODY MIST': 'HAIR & BODY MIST',
+  'JABONES': 'JABONES',
+  'JABONES DE MANOS': 'JABONES',
+};
+
 const TARIFAS = {
-  'GELES DE BAÑO 750ML': [
+  'GELES 750ML': [
     { desde: 0, precio: 1.48 },
     { desde: 48, precio: 1.39 },
     { desde: 96, precio: 1.37 },
@@ -7,7 +20,7 @@ const TARIFAS = {
     { desde: 540, precio: 1.31 },
     { desde: 1080, precio: 1.23 }
   ],
-  'GELES DE BAÑO 1L': [
+  'GELES 1L': [
     { desde: 0, precio: 1.24 },
     { desde: 100, precio: 1.18 },
     { desde: 300, precio: 1.13 },
@@ -20,7 +33,7 @@ const TARIFAS = {
     { desde: 240, precio: 1.18 },
     { desde: 500, precio: 1.14 }
   ],
-  'JABONES DE MANOS': [
+  'JABONES': [
     { desde: 0, precio: 1.29 },
     { desde: 144, precio: 1.24 },
     { desde: 228, precio: 1.18 },
@@ -29,15 +42,39 @@ const TARIFAS = {
 };
 
 export function determinarCategoriaEscalado(producto) {
-  const cat = producto.categoria;
+  const cat = producto.categoria?.toUpperCase();
   if (!cat) return null;
+  return ESCALADO_ALIASES[cat] || null;
+}
 
-  if (cat === 'GELES DE BAÑO 750ML') return 'GELES DE BAÑO 750ML';
-  if (cat === 'GELES DE BAÑO 1L') return 'GELES DE BAÑO 1L';
-  if (cat === 'HAIR & BODY MIST') return 'HAIR & BODY MIST';
-  if (cat === 'JABONES DE MANOS') return 'JABONES DE MANOS';
+// --- Lógica de agrupación de cajas ---
 
-  return null;
+// Categorías donde NO se permiten cajas surtidas (cada referencia va por separado)
+const CATEGORIAS_SIN_SURTIDO = ['GELES', 'JABONES', 'CHAMPUS', 'CHAMPÚS'];
+
+export function esCategoríaSinSurtido(categoria) {
+  const cat = categoria?.toUpperCase() || '';
+  return CATEGORIAS_SIN_SURTIDO.some(c => cat.includes(c));
+}
+
+// Subgrupos para línea facial
+const FACIAL_SUBGRUPOS = {
+  SERUM: ['SERUM', 'SÉRUM'],
+  CREMA: ['CREMA', 'CREMAS'],
+  LIMPIEZA: ['TÓNICO', 'TONICO', 'LECHE LIMPIADORA', 'AGUA MICELAR', 'MICELAR'],
+};
+
+export function esCategoríaFacial(categoria) {
+  const cat = categoria?.toUpperCase() || '';
+  return cat.includes('FACIAL') || cat.includes('LINEA FACIAL') || cat.includes('LÍNEA FACIAL');
+}
+
+export function getSubgrupoFacial(referencia) {
+  const ref = referencia?.toUpperCase() || '';
+  for (const [grupo, keywords] of Object.entries(FACIAL_SUBGRUPOS)) {
+    if (keywords.some(kw => ref.includes(kw))) return grupo;
+  }
+  return 'OTROS_FACIAL';
 }
 
 /**
