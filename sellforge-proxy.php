@@ -181,13 +181,19 @@ foreach ($input['lineas'] as $l) {
     ];
 }
 
+$zona = (string)($input['zona'] ?? '');
+
 $data = json_encode([
     'customers_code'       => (string)$input['codigo_cliente'],
     'customers_name'       => (string)($input['nombre_cliente'] ?: $input['codigo_cliente']),
     'date_order'           => (int)(strtotime($input['fecha'] ?? 'now')),
     'customers_order_code' => (string)($input['id'] ?? ''),
-    'user'                 => (string)($input['zona'] ?? ''),
-    'notes'                => 'Pedido Betrés ON #' . ($input['id'] ?? '') . ' | Zona: ' . ($input['zona'] ?? '') . (!empty($input['comentarios']) ? ' | Comentarios: ' . $input['comentarios'] : ''),
+    'user'                 => $zona,
+    'user_code'            => $zona,
+    'agent'                => $zona,
+    'agent_code'           => $zona,
+    'salesman_code'        => $zona,
+    'notes'                => 'Pedido Betrés ON #' . ($input['id'] ?? '') . ' | Zona: ' . $zona . (!empty($input['comentarios']) ? ' | Comentarios: ' . $input['comentarios'] : ''),
     'lines'                => $lines,
 ]);
 
@@ -198,7 +204,7 @@ curl_setopt_array($ch, [
         'token'  => $token,
         'action' => 'put_order',
         'dealer' => $SF_DEALER,
-        'user'   => (string)($input['zona'] ?? ''),
+        'user'   => $zona,
         'data'   => $data,
     ]),
     CURLOPT_RETURNTRANSFER => true,
