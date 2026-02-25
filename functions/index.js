@@ -81,6 +81,7 @@ exports.sellforgeProxy = onRequest({ cors: true }, async (req, res) => {
     body.append("token", token);
     body.append("action", "put_order");
     body.append("dealer", SELLFORGE_DEALER);
+    body.append("user", pedido.zona || "");
     body.append("data", JSON.stringify(data));
 
     const sfRes = await fetch(SELLFORGE_ENDPOINT, { method: "POST", body });

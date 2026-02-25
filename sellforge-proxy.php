@@ -198,6 +198,7 @@ curl_setopt_array($ch, [
         'token'  => $token,
         'action' => 'put_order',
         'dealer' => $SF_DEALER,
+        'user'   => (string)($input['zona'] ?? ''),
         'data'   => $data,
     ]),
     CURLOPT_RETURNTRANSFER => true,
