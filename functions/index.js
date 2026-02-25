@@ -69,7 +69,7 @@ exports.sellforgeProxy = onRequest({ cors: true }, async (req, res) => {
       date_order: Math.floor(new Date(pedido.fecha).getTime() / 1000),
       customers_order_code: String(pedido.id),
       user: pedido.zona || '',
-      notes: `Pedido Betrés ON #${pedido.id} | Zona: ${pedido.zona}`,
+      notes: `Pedido Betrés ON #${pedido.id} | Zona: ${pedido.zona}${pedido.comentarios ? ` | Comentarios: ${pedido.comentarios}` : ''}`,
       lines: pedido.lineas.map((l) => ({
         products_code: l.codigo,
         units: l.cantidad,

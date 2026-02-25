@@ -205,6 +205,13 @@ export default function DetallePedido() {
               </div>
             </div>
           </div>
+
+          {pedido.comentarios && (
+            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-600 uppercase tracking-wide font-semibold mb-1">Comentarios</p>
+              <p className="text-sm text-gray-800 whitespace-pre-line">{pedido.comentarios}</p>
+            </div>
+          )}
         </div>
       </main>
     </div>

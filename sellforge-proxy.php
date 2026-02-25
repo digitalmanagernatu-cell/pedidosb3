@@ -187,7 +187,7 @@ $data = json_encode([
     'date_order'           => (int)(strtotime($input['fecha'] ?? 'now')),
     'customers_order_code' => (string)($input['id'] ?? ''),
     'user'                 => (string)($input['zona'] ?? ''),
-    'notes'                => 'Pedido Betrés ON #' . ($input['id'] ?? '') . ' | Zona: ' . ($input['zona'] ?? ''),
+    'notes'                => 'Pedido Betrés ON #' . ($input['id'] ?? '') . ' | Zona: ' . ($input['zona'] ?? '') . (!empty($input['comentarios']) ? ' | Comentarios: ' . $input['comentarios'] : ''),
     'lines'                => $lines,
 ]);
 

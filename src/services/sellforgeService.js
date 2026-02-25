@@ -19,6 +19,7 @@ export async function enviarPedidoSellforge(pedido) {
       nombre_cliente: pedido.nombre_cliente,
       fecha: pedido.fecha,
       zona: pedido.zona,
+      comentarios: pedido.comentarios || '',
       lineas: pedido.lineas.map(l => ({
         codigo: l.codigo,
         cantidad: l.cantidad,
