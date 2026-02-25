@@ -116,6 +116,7 @@ export default function CrearPedido() {
     if (!nombreCliente.trim()) errs.nombreCliente = 'El nombre del cliente es obligatorio';
     if (!ciudadSeleccionada) errs.zona = 'Selecciona una zona';
     if (totales.totalProductos === 0) errs.productos = 'Selecciona al menos un producto';
+    if (totales.totalProductos > 0 && totales.subtotal < 150) errs.minimo = `Pedido mínimo: 150,00 € (sin IVA). Faltan ${(150 - totales.subtotal).toFixed(2)} €`;
     if (Object.keys(avisosCajas).length > 0) {
       const cats = Object.values(avisosCajas)
         .map(({ label, faltan, udCaja }) => `${label}: faltan ${faltan} uds (caja de ${udCaja})`)
@@ -240,6 +241,9 @@ export default function CrearPedido() {
           )}
           {errores.cajas && (
             <p className="text-red-500 text-sm mt-2 font-medium">{errores.cajas}</p>
+          )}
+          {errores.minimo && (
+            <p className="text-red-500 text-sm mt-2 font-medium">{errores.minimo}</p>
           )}
         </div>
 
