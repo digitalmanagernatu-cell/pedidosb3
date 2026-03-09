@@ -1,11 +1,12 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Check } from 'lucide-react';
+import { Settings, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { getProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
 import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado, esCategoríaSinSurtido, esCategoríaFacial, getSubgrupoFacial } from '../services/preciosService';
-import { guardarPedido } from '../services/pedidosService';
+import { guardarPedido, actualizarPedido } from '../services/pedidosService';
+import { enviarPedidoSellforge } from '../services/sellforgeService';
 import { CIUDADES_ZONAS } from '../services/authService';
 
 export default function CrearPedido() {
@@ -126,7 +127,9 @@ export default function CrearPedido() {
     return errs;
   }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, avisosCajas]);
 
-  const handleCrearPedido = () => {
+  const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
+
+  const handleCrearPedido = async () => {
     const errs = validar();
     setErrores(errs);
     if (Object.keys(errs).length > 0) return;
@@ -166,10 +169,27 @@ export default function CrearPedido() {
     });
 
     setModal(pedido.id);
+    setSfStatus('enviando');
+
+    // Envío automático a Sellforge
+    try {
+      const result = await enviarPedidoSellforge(pedido);
+      actualizarPedido(pedido.id, {
+        enviadoSellforge: {
+          fecha: new Date().toISOString(),
+          codigo: result.code || '',
+          total: result.total || ''
+        }
+      });
+      setSfStatus({ tipo: 'ok', texto: `Enviado a Sellforge. Código: ${result.code}` });
+    } catch (err) {
+      setSfStatus({ tipo: 'error', texto: `Error al enviar a Sellforge: ${err.message}. Puedes reenviarlo desde el panel de administración.` });
+    }
   };
 
   const cerrarModal = () => {
     setModal(null);
+    setSfStatus(null);
     setCodigoCliente('');
     setNombreCliente('');
     setCiudadSeleccionada('');
@@ -282,12 +302,34 @@ export default function CrearPedido() {
               <Check className="w-8 h-8 text-green-600" />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Pedido creado</h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-3">
               Pedido <span className="font-mono font-bold">#{modal}</span> registrado correctamente.
             </p>
+
+            {/* Estado envío Sellforge */}
+            {sfStatus === 'enviando' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Enviando a Sellforge...
+              </div>
+            )}
+            {sfStatus?.tipo === 'ok' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                <Check className="w-4 h-4" />
+                {sfStatus.texto}
+              </div>
+            )}
+            {sfStatus?.tipo === 'error' && (
+              <div className="flex items-start gap-2 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-left">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {sfStatus.texto}
+              </div>
+            )}
+
             <button
               onClick={cerrarModal}
-              className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+              disabled={sfStatus === 'enviando'}
+              className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Aceptar
             </button>
