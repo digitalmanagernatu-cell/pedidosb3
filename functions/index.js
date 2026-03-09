@@ -63,13 +63,18 @@ exports.sellforgeProxy = onRequest({ cors: true }, async (req, res) => {
 
     const token = await getToken();
 
+    const zona = pedido.zona || '';
     const data = {
       customers_code: pedido.codigo_cliente,
       customers_name: pedido.nombre_cliente || pedido.codigo_cliente,
       date_order: Math.floor(new Date(pedido.fecha).getTime() / 1000),
       customers_order_code: String(pedido.id),
-      user: pedido.zona || '',
-      notes: `Pedido Betrés ON #${pedido.id} | Zona: ${pedido.zona}${pedido.comentarios ? ` | Comentarios: ${pedido.comentarios}` : ''}`,
+      user: zona,
+      user_code: zona,
+      agent: zona,
+      agent_code: zona,
+      salesman_code: zona,
+      notes: `Pedido Betrés ON #${pedido.id} | Zona: ${zona}${pedido.comentarios ? ` | Comentarios: ${pedido.comentarios}` : ''}`,
       lines: pedido.lineas.map((l) => ({
         products_code: l.codigo,
         units: l.cantidad,
