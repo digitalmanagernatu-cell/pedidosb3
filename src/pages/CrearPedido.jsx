@@ -46,8 +46,11 @@ const TARIFAS_ALTA_NUEVA = {
 function clasificarCategoria(cat) {
   const upper = cat?.toUpperCase() || '';
   if (upper.includes('GELES')) return 'geles';
-  if (upper.includes('PERFUMERÍA') && upper.includes('100ML')) return 'perfumeria100ml';
+  // Perfumería 100ml: FOR HER 100ML, FOR HIM 100ML (no incluye NICHO)
+  if (upper.includes('PERFUMERÍA') && upper.includes('100ML') && !upper.includes('NICHO')) return 'perfumeria100ml';
+  // Oriental = línea NICHO
   if (upper.includes('NICHO')) return 'oriental';
+  // Ambientación: todas las subcategorías (MIKADOS, ROSA, FLOR, MIKADO DECORATIVO)
   if (upper.includes('AMBIENTACIÓN')) return 'ambientacion';
   return null;
 }
@@ -105,7 +108,7 @@ export default function CrearPedido() {
   const configTarifa = altaNueva === 'si' && tarifaAlta ? TARIFAS_ALTA_NUEVA[tarifaAlta] : null;
 
   const totales = useMemo(() => {
-    let subtotal = 0;
+    let subtotalBruto = 0;
     let ahorro = 0;
     let totalProductos = 0;
 
@@ -116,13 +119,13 @@ export default function CrearPedido() {
       const catEsc = determinarCategoriaEscalado(producto);
       const totalCat = catEsc ? totalesCatEscalado[catEsc] : undefined;
       const precioUnit = calcularPrecioUnitario(producto, cantidad, totalCat);
-      subtotal += precioUnit * cantidad;
+      subtotalBruto += precioUnit * cantidad;
       ahorro += calcularAhorro(producto, cantidad, totalCat);
       totalProductos++;
     });
 
     const descuento2x1 = calcularDescuento2x1(seleccion, productos);
-    const subtotalNeto = subtotal - descuento2x1;
+    const subtotalNeto = subtotalBruto - descuento2x1;
 
     // Descuento Alta Nueva
     const descuentoAltaNueva = configTarifa ? subtotalNeto * configTarifa.descuento : 0;
@@ -131,7 +134,7 @@ export default function CrearPedido() {
     const iva = subtotalConAlta * 0.21;
     const total = subtotalConAlta + iva;
 
-    return { totalProductos, subtotal: subtotalConAlta, subtotalSinDescuento: subtotalNeto, ahorro, descuento2x1, descuentoAltaNueva, iva, total };
+    return { totalProductos, subtotal: subtotalConAlta, subtotalBruto, subtotalSinDescuento: subtotalNeto, ahorro, descuento2x1, descuentoAltaNueva, iva, total };
   }, [seleccion, productos, totalesCatEscalado, configTarifa]);
 
   const avisosCajas = useMemo(() => {
@@ -200,7 +203,9 @@ export default function CrearPedido() {
 
     // Validaciones específicas Alta Nueva
     if (configTarifa && totales.totalProductos > 0) {
-      const subtotalBase = totales.subtotalSinDescuento;
+      // Usar subtotalBruto (suma de todos los productos, antes de 2x1 y descuentos)
+      // para calcular porcentajes de forma coherente con totalesPorGrupo
+      const subtotalBase = totales.subtotalBruto;
 
       // Límite de geles
       const totalGeles = totalesPorGrupo.geles;
@@ -211,14 +216,15 @@ export default function CrearPedido() {
         errs.gelesAlta = `Tarifa ${tarifaAlta}: Geles (${totalGeles.toFixed(2)} €) superan el máx. ${limitePct}% del pedido (${gelesMaxPorPorcentaje.toFixed(2)} €) o el tope de ${gelesMaxAbsoluto} € PVL`;
       }
 
-      // Requisito mínimo de categorías
+      // Requisito mínimo de categorías (suma de perfumería 100ml + oriental + ambientación según tarifa)
       const totalRequisito = configTarifa.requisitoCategoriasValidas.reduce(
         (sum, grupo) => sum + (totalesPorGrupo[grupo] || 0), 0
       );
       const minimoRequisito = subtotalBase * configTarifa.requisitoMinPorcentaje;
       if (totalRequisito < minimoRequisito) {
         const pctReq = (configTarifa.requisitoMinPorcentaje * 100).toFixed(0);
-        errs.requisitoAlta = `Tarifa ${tarifaAlta}: Mín. ${pctReq}% en ${configTarifa.requisitoLabel} (${totalRequisito.toFixed(2)} € de ${minimoRequisito.toFixed(2)} € necesarios)`;
+        const pctActual = subtotalBase > 0 ? ((totalRequisito / subtotalBase) * 100).toFixed(1) : '0.0';
+        errs.requisitoAlta = `Tarifa ${tarifaAlta}: Mín. ${pctReq}% en ${configTarifa.requisitoLabel}. Actual: ${pctActual}% (${totalRequisito.toFixed(2)} € de ${minimoRequisito.toFixed(2)} € necesarios)`;
       }
     }
 
@@ -229,7 +235,7 @@ export default function CrearPedido() {
       errs.cajas = `Cajas incompletas: ${cats}`;
     }
     return errs;
-  }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, totales.subtotal, totales.subtotalSinDescuento, avisosCajas, altaNueva, tarifaAlta, configTarifa, totalesPorGrupo]);
+  }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, totales.subtotal, totales.subtotalBruto, avisosCajas, altaNueva, tarifaAlta, configTarifa, totalesPorGrupo]);
 
   const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
 
