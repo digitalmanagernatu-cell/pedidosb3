@@ -1,9 +1,9 @@
-import { ShoppingCart, TrendingDown, Tag, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, TrendingDown, Tag, AlertTriangle, Percent } from 'lucide-react';
 
 const PEDIDO_MINIMO = 150;
 
 export default function ResumenPedido({ totales, onCrearPedido, disabled }) {
-  const { totalProductos, subtotal, ahorro, descuento2x1, iva, total } = totales;
+  const { totalProductos, subtotal, ahorro, descuento2x1, descuentoAltaNueva, iva, total } = totales;
   const porDebajoMinimo = totalProductos > 0 && subtotal < PEDIDO_MINIMO;
 
   return (
@@ -36,6 +36,12 @@ export default function ResumenPedido({ totales, onCrearPedido, disabled }) {
               <div className="flex items-center gap-1.5">
                 <Tag className="w-4 h-4 text-orange-500" />
                 <span className="text-orange-600 font-bold">Promo 2x1: -{descuento2x1.toFixed(2)} €</span>
+              </div>
+            )}
+            {descuentoAltaNueva > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Percent className="w-4 h-4 text-purple-500" />
+                <span className="text-purple-600 font-bold">Dto. Alta Nueva: -{descuentoAltaNueva.toFixed(2)} €</span>
               </div>
             )}
             <div>

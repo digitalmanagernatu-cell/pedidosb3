@@ -195,6 +195,12 @@ export default function DetallePedido() {
                   <span className="font-bold">-{pedido.totales.descuento_2x1.toFixed(2)} €</span>
                 </div>
               )}
+              {(pedido.totales.descuento_alta_nueva || 0) > 0 && (
+                <div className="flex justify-between text-purple-600">
+                  <span>Dto. Alta Nueva{pedido.alta_nueva ? ` (${pedido.alta_nueva})` : ''}</span>
+                  <span className="font-bold">-{pedido.totales.descuento_alta_nueva.toFixed(2)} €</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-600">IVA (21%)</span>
                 <span className="font-semibold">{pedido.totales.iva.toFixed(2)} €</span>
