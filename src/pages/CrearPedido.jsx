@@ -43,15 +43,19 @@ const TARIFAS_ALTA_NUEVA = {
   },
 };
 
+function normalizarTexto(str) {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+
 function clasificarCategoria(cat) {
-  const upper = cat?.toUpperCase() || '';
+  const upper = normalizarTexto(cat || '');
   if (upper.includes('GELES')) return 'geles';
   // Perfumería 100ml: FOR HER 100ML, FOR HIM 100ML (no incluye NICHO)
-  if (upper.includes('PERFUMERÍA') && upper.includes('100ML') && !upper.includes('NICHO')) return 'perfumeria100ml';
+  if (upper.includes('PERFUMERIA') && upper.includes('100ML') && !upper.includes('NICHO')) return 'perfumeria100ml';
   // Oriental = línea NICHO
   if (upper.includes('NICHO')) return 'oriental';
   // Ambientación: todas las subcategorías (MIKADOS, ROSA, FLOR, MIKADO DECORATIVO)
-  if (upper.includes('AMBIENTACIÓN')) return 'ambientacion';
+  if (upper.includes('AMBIENTACION')) return 'ambientacion';
   return null;
 }
 
