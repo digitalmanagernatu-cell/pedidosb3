@@ -9,6 +9,49 @@ import { guardarPedido, actualizarPedido } from '../services/pedidosService';
 import { enviarPedidoSellforge } from '../services/sellforgeService';
 import { CIUDADES_ZONAS } from '../services/authService';
 
+// --- Configuración tarifas Alta Nueva ---
+const TARIFAS_ALTA_NUEVA = {
+  M: {
+    pedidoMinimo: 600,
+    descuento: 0.05,
+    gelesMaxPorcentaje: 0.20,
+    gelesMaxPVL: 120,
+    requisitoMinPorcentaje: 0.50,
+    requisitoCategoriasValidas: ['perfumeria100ml', 'oriental', 'ambientacion'],
+    requisitoLabel: 'perfumería 100ml, Oriental o ambientación',
+    comentarioAuto: 'Alta Nueva PROMOCIÓN M\nTesters incluidos en perfumes 100ml (1 c/ 2 cajas misma ref.)\nPago a 60 días',
+  },
+  L: {
+    pedidoMinimo: 1000,
+    descuento: 0.08,
+    gelesMaxPorcentaje: 0.15,
+    gelesMaxPVL: 150,
+    requisitoMinPorcentaje: 0.50,
+    requisitoCategoriasValidas: ['perfumeria100ml', 'oriental'],
+    requisitoLabel: 'perfumería 100ml u Oriental',
+    comentarioAuto: 'Alta Nueva PROMOCIÓN L\nExpositores sobremesa incluidos\nPago 30-60 días',
+  },
+  XL: {
+    pedidoMinimo: 1500,
+    descuento: 0.10,
+    gelesMaxPorcentaje: 0.10,
+    gelesMaxPVL: 150,
+    requisitoMinPorcentaje: 0.60,
+    requisitoCategoriasValidas: ['perfumeria100ml', 'oriental', 'ambientacion'],
+    requisitoLabel: 'perfumería 100ml, Oriental o ambientación',
+    comentarioAuto: 'Alta Nueva PROMOCIÓN XL\n3% rappel anual si supera 6.000 €\nPago 30-60-85 días',
+  },
+};
+
+function clasificarCategoria(cat) {
+  const upper = cat?.toUpperCase() || '';
+  if (upper.includes('GELES')) return 'geles';
+  if (upper.includes('PERFUMERÍA') && upper.includes('100ML')) return 'perfumeria100ml';
+  if (upper.includes('NICHO')) return 'oriental';
+  if (upper.includes('AMBIENTACIÓN')) return 'ambientacion';
+  return null;
+}
+
 export default function CrearPedido() {
   const navigate = useNavigate();
   const [productos, setProductos] = useState(() => getProductos());
@@ -35,11 +78,31 @@ export default function CrearPedido() {
   const [comentarios, setComentarios] = useState('');
   const [modal, setModal] = useState(null);
   const [errores, setErrores] = useState({});
+  const [altaNueva, setAltaNueva] = useState('no');
+  const [tarifaAlta, setTarifaAlta] = useState('');
 
   const totalesCatEscalado = useMemo(
     () => calcularTotalesPorCategoriaEscalado(seleccion, productos),
     [seleccion, productos]
   );
+
+  // Totales por grupo de categoría (para validaciones Alta Nueva)
+  const totalesPorGrupo = useMemo(() => {
+    const grupos = { geles: 0, perfumeria100ml: 0, oriental: 0, ambientacion: 0 };
+    Object.entries(seleccion).forEach(([codigo, { cantidad, checked }]) => {
+      if (!checked || cantidad <= 0) return;
+      const producto = productos.find(p => p.codigo === codigo);
+      if (!producto) return;
+      const catEsc = determinarCategoriaEscalado(producto);
+      const totalCat = catEsc ? totalesCatEscalado[catEsc] : undefined;
+      const precioUnit = calcularPrecioUnitario(producto, cantidad, totalCat);
+      const grupo = clasificarCategoria(producto.categoria);
+      if (grupo) grupos[grupo] += precioUnit * cantidad;
+    });
+    return grupos;
+  }, [seleccion, productos, totalesCatEscalado]);
+
+  const configTarifa = altaNueva === 'si' && tarifaAlta ? TARIFAS_ALTA_NUEVA[tarifaAlta] : null;
 
   const totales = useMemo(() => {
     let subtotal = 0;
@@ -60,11 +123,16 @@ export default function CrearPedido() {
 
     const descuento2x1 = calcularDescuento2x1(seleccion, productos);
     const subtotalNeto = subtotal - descuento2x1;
-    const iva = subtotalNeto * 0.21;
-    const total = subtotalNeto + iva;
 
-    return { totalProductos, subtotal: subtotalNeto, ahorro, descuento2x1, iva, total };
-  }, [seleccion, productos, totalesCatEscalado]);
+    // Descuento Alta Nueva
+    const descuentoAltaNueva = configTarifa ? subtotalNeto * configTarifa.descuento : 0;
+    const subtotalConAlta = subtotalNeto - descuentoAltaNueva;
+
+    const iva = subtotalConAlta * 0.21;
+    const total = subtotalConAlta + iva;
+
+    return { totalProductos, subtotal: subtotalConAlta, subtotalSinDescuento: subtotalNeto, ahorro, descuento2x1, descuentoAltaNueva, iva, total };
+  }, [seleccion, productos, totalesCatEscalado, configTarifa]);
 
   const avisosCajas = useMemo(() => {
     const grupos = {}; // clave → { total, udCaja, label }
@@ -117,7 +185,43 @@ export default function CrearPedido() {
     if (!nombreCliente.trim()) errs.nombreCliente = 'El nombre del cliente es obligatorio';
     if (!ciudadSeleccionada) errs.zona = 'Selecciona una zona';
     if (totales.totalProductos === 0) errs.productos = 'Selecciona al menos un producto';
-    if (totales.totalProductos > 0 && totales.subtotal < 150) errs.minimo = `Pedido mínimo: 150,00 € (sin IVA). Faltan ${(150 - totales.subtotal).toFixed(2)} €`;
+
+    // Alta Nueva: validar tarifa seleccionada
+    if (altaNueva === 'si' && !tarifaAlta) {
+      errs.tarifaAlta = 'Selecciona un tipo de tarifa de alta (M, L o XL)';
+    }
+
+    // Pedido mínimo (Alta Nueva o estándar)
+    const minimoRequerido = configTarifa ? configTarifa.pedidoMinimo : 150;
+    const subtotalParaMinimo = configTarifa ? totales.subtotalSinDescuento : totales.subtotal;
+    if (totales.totalProductos > 0 && subtotalParaMinimo < minimoRequerido) {
+      errs.minimo = `Pedido mínimo: ${minimoRequerido.toFixed(2)} € (sin IVA). Faltan ${(minimoRequerido - subtotalParaMinimo).toFixed(2)} €`;
+    }
+
+    // Validaciones específicas Alta Nueva
+    if (configTarifa && totales.totalProductos > 0) {
+      const subtotalBase = totales.subtotalSinDescuento;
+
+      // Límite de geles
+      const totalGeles = totalesPorGrupo.geles;
+      const gelesMaxPorPorcentaje = subtotalBase * configTarifa.gelesMaxPorcentaje;
+      const gelesMaxAbsoluto = configTarifa.gelesMaxPVL;
+      if (totalGeles > gelesMaxPorPorcentaje || totalGeles > gelesMaxAbsoluto) {
+        const limitePct = (configTarifa.gelesMaxPorcentaje * 100).toFixed(0);
+        errs.gelesAlta = `Tarifa ${tarifaAlta}: Geles (${totalGeles.toFixed(2)} €) superan el máx. ${limitePct}% del pedido (${gelesMaxPorPorcentaje.toFixed(2)} €) o el tope de ${gelesMaxAbsoluto} € PVL`;
+      }
+
+      // Requisito mínimo de categorías
+      const totalRequisito = configTarifa.requisitoCategoriasValidas.reduce(
+        (sum, grupo) => sum + (totalesPorGrupo[grupo] || 0), 0
+      );
+      const minimoRequisito = subtotalBase * configTarifa.requisitoMinPorcentaje;
+      if (totalRequisito < minimoRequisito) {
+        const pctReq = (configTarifa.requisitoMinPorcentaje * 100).toFixed(0);
+        errs.requisitoAlta = `Tarifa ${tarifaAlta}: Mín. ${pctReq}% en ${configTarifa.requisitoLabel} (${totalRequisito.toFixed(2)} € de ${minimoRequisito.toFixed(2)} € necesarios)`;
+      }
+    }
+
     if (Object.keys(avisosCajas).length > 0) {
       const cats = Object.values(avisosCajas)
         .map(({ label, faltan, udCaja }) => `${label}: faltan ${faltan} uds (caja de ${udCaja})`)
@@ -125,7 +229,7 @@ export default function CrearPedido() {
       errs.cajas = `Cajas incompletas: ${cats}`;
     }
     return errs;
-  }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, avisosCajas]);
+  }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, totales.subtotal, totales.subtotalSinDescuento, avisosCajas, altaNueva, tarifaAlta, configTarifa, totalesPorGrupo]);
 
   const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
 
@@ -153,16 +257,28 @@ export default function CrearPedido() {
       });
     });
 
+    // Construir comentarios con texto automático de Alta Nueva
+    let comentariosFinal = comentarios.trim();
+    if (configTarifa) {
+      const textoAlta = configTarifa.comentarioAuto;
+      comentariosFinal = comentariosFinal
+        ? `${textoAlta}\n\n${comentariosFinal}`
+        : textoAlta;
+    }
+
     const pedido = guardarPedido({
       codigo_cliente: codigoCliente.trim(),
       nombre_cliente: nombreCliente.trim(),
       zona,
-      comentarios: comentarios.trim(),
+      comentarios: comentariosFinal,
+      alta_nueva: altaNueva === 'si' ? tarifaAlta : null,
       lineas,
       totales: {
         subtotal: totales.subtotal,
+        subtotal_sin_descuento: totales.subtotalSinDescuento,
         ahorro: totales.ahorro,
         descuento_2x1: totales.descuento2x1,
+        descuento_alta_nueva: totales.descuentoAltaNueva,
         iva: totales.iva,
         total: totales.total
       }
@@ -196,6 +312,8 @@ export default function CrearPedido() {
     setSeleccion({});
     setComentarios('');
     setErrores({});
+    setAltaNueva('no');
+    setTarifaAlta('');
   };
 
   return (
@@ -256,6 +374,50 @@ export default function CrearPedido() {
               {errores.zona && <p className="text-red-500 text-xs mt-1">{errores.zona}</p>}
             </div>
           </div>
+
+          {/* Alta Nueva */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Alta Nueva</label>
+              <select
+                value={altaNueva}
+                onChange={(e) => {
+                  setAltaNueva(e.target.value);
+                  if (e.target.value === 'no') setTarifaAlta('');
+                }}
+                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="no">No</option>
+                <option value="si">S&iacute;</option>
+              </select>
+            </div>
+            {altaNueva === 'si' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de tarifa de alta *</label>
+                <select
+                  value={tarifaAlta}
+                  onChange={(e) => setTarifaAlta(e.target.value)}
+                  className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white ${errores.tarifaAlta ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
+                >
+                  <option value="">Selecciona tarifa...</option>
+                  <option value="M">M - Dto. 5% (min. 600 &euro;)</option>
+                  <option value="L">L - Dto. 8% (min. 1.000 &euro;)</option>
+                  <option value="XL">XL - Dto. 10% (min. 1.500 &euro;)</option>
+                </select>
+                {errores.tarifaAlta && <p className="text-red-500 text-xs mt-1">{errores.tarifaAlta}</p>}
+              </div>
+            )}
+            {configTarifa && (
+              <div className="sm:col-span-1 flex items-end">
+                <div className="w-full p-2.5 bg-purple-50 border-2 border-purple-200 rounded-lg text-xs text-purple-800">
+                  <p className="font-bold mb-1">Promocion {tarifaAlta}:</p>
+                  <p>Dto. {(configTarifa.descuento * 100).toFixed(0)}% | Min. {configTarifa.pedidoMinimo} &euro;</p>
+                  <p>Geles max. {(configTarifa.gelesMaxPorcentaje * 100).toFixed(0)}% (hasta {configTarifa.gelesMaxPVL} &euro;)</p>
+                  <p>Min. {(configTarifa.requisitoMinPorcentaje * 100).toFixed(0)}% en {configTarifa.requisitoLabel}</p>
+                </div>
+              </div>
+            )}
+          </div>
           {errores.productos && (
             <p className="text-red-500 text-sm mt-3 font-medium">{errores.productos}</p>
           )}
@@ -264,6 +426,12 @@ export default function CrearPedido() {
           )}
           {errores.minimo && (
             <p className="text-red-500 text-sm mt-2 font-medium">{errores.minimo}</p>
+          )}
+          {errores.gelesAlta && (
+            <p className="text-red-500 text-sm mt-2 font-medium">{errores.gelesAlta}</p>
+          )}
+          {errores.requisitoAlta && (
+            <p className="text-red-500 text-sm mt-2 font-medium">{errores.requisitoAlta}</p>
           )}
         </div>
 
