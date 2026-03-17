@@ -10,37 +10,53 @@ import { enviarPedidoSellforge } from '../services/sellforgeService';
 import { enviarPedidoEmail, isEmailConfigured } from '../services/emailService';
 import { CIUDADES_ZONAS } from '../services/authService';
 
+// --- Mapa zona comercial → email del comercial ---
+const COMERCIALES_ZONA = {
+  FAR001: { nombre: 'Gregorio', email: 'betreson-cataluna@natuaromatic.com' },
+  FAR002: { nombre: 'David Arrife', email: 'arrife.david@natuaromatic.com' },
+  FAR003: { nombre: 'Francisco Huertas', email: 'huertas.francisco@natuaromatic.com' },
+  FAR004: { nombre: 'Georget Mouchati', email: 'mouchati.gorget@natuaromatic.com' },
+  FAR005: { nombre: 'Jose Ojeda', email: 'ojeda.jose@natuaromatic.com' },
+  FAR006: { nombre: 'Juan Villajos', email: 'villajos.juan@natuaromatic.com' },
+  FAR007: { nombre: 'Lourdes Navarro', email: 'navarro.lourdes@natuaromatic.com' },
+  FAR008: { nombre: 'Javier Molejon', email: 'betreson-galicia@natuaromatic.com' },
+  FAR009: { nombre: 'Yolanda Vivas', email: 'vivas.yolanda@natuaromatic.com' },
+  FAR012: { nombre: 'Natuaromatic', email: 'pedidosbetreson@natuaromatic.com' },
+  FAR013: { nombre: 'Pedro Ortega', email: 'ortega.pedro@natuaromatic.com' },
+  FAR019: { nombre: 'Ramon Belenguer', email: 'belenguer.ramon@natuaromatic.com' },
+};
+
 // --- Configuración tarifas Alta Nueva ---
 const TARIFAS_ALTA_NUEVA = {
   M: {
     pedidoMinimo: 600,
-    descuento: 0.05,
-    gelesMaxPorcentaje: 0.20,
-    gelesMaxPVL: 120,
+    descuento: 0.03,
+    gelesMaxPorcentaje: null,
+    gelesMaxPVL: null,
     requisitoMinPorcentaje: 0.50,
-    requisitoCategoriasValidas: ['perfumeria100ml', 'oriental', 'ambientacion'],
-    requisitoLabel: 'perfumería 100ml, Oriental o ambientación',
-    comentarioAuto: 'Alta Nueva PROMOCIÓN M\nTesters incluidos en perfumes 100ml (1 c/ 2 cajas misma ref.)\nPago a 60 días',
+    requisitoCategoriasValidas: ['perfumeria100ml', 'mascotas', 'oriental', 'ambientacion'],
+    requisitoLabel: 'perfumería 100ml, col. mascotas, perf. oriental y ambientación',
+    comentarioAuto: 'Alta Nueva PROMOCIÓN M\n3% descuento directo\n3% en reposición durante 30 días F.F.\nPago a 60 días F.F.\nPromoción no acumulable con otros descuentos activos',
   },
   L: {
     pedidoMinimo: 1000,
-    descuento: 0.08,
+    descuento: 0.05,
     gelesMaxPorcentaje: 0.15,
     gelesMaxPVL: 150,
     requisitoMinPorcentaje: 0.50,
-    requisitoCategoriasValidas: ['perfumeria100ml', 'oriental'],
-    requisitoLabel: 'perfumería 100ml u Oriental',
-    comentarioAuto: 'Alta Nueva PROMOCIÓN L\nExpositores sobremesa incluidos\nPago 30-60 días',
+    requisitoCategoriasValidas: ['perfumeria100ml', 'mascotas', 'oriental', 'ambientacion'],
+    requisitoLabel: 'perfumería 100ml, col. mascotas, perf. oriental y ambientación',
+    comentarioAuto: 'Alta Nueva PROMOCIÓN L\n5% descuento directo\n5% en reposición durante 40 días F.F.\n2 cajas de 30ml sin cargo\nGeles máx. 15% del pedido (hasta 150 € PVL)\nPago 30-60 días\nPromoción no acumulable con otros descuentos activos',
   },
   XL: {
     pedidoMinimo: 1500,
-    descuento: 0.10,
+    descuento: 0.08,
     gelesMaxPorcentaje: 0.10,
     gelesMaxPVL: 150,
     requisitoMinPorcentaje: 0.60,
-    requisitoCategoriasValidas: ['perfumeria100ml', 'oriental', 'ambientacion'],
-    requisitoLabel: 'perfumería 100ml, Oriental o ambientación',
-    comentarioAuto: 'Alta Nueva PROMOCIÓN XL\n3% rappel anual si supera 6.000 €\nPago 30-60-85 días',
+    requisitoCategoriasValidas: ['perfumeria100ml', 'mascotas', 'oriental', 'ambientacion'],
+    requisitoLabel: 'perfumería 100ml, col. mascotas, perf. oriental y ambientación',
+    comentarioAuto: 'Alta Nueva PROMOCIÓN XL\n8% descuento directo\n8% en reposición durante 60 días F.F.\n3% rappel anual si supera 6.000 €\nGeles máx. 10% del pedido (hasta 150 € PVL)\nPago 30-60-85 días\nPromoción no acumulable con otros descuentos activos',
   },
 };
 
@@ -55,6 +71,8 @@ function clasificarCategoria(cat) {
   if (upper.includes('PERFUMERIA') && upper.includes('100ML') && !upper.includes('NICHO')) return 'perfumeria100ml';
   // Oriental = línea NICHO
   if (upper.includes('NICHO')) return 'oriental';
+  // Colección mascotas (BRUMA MASCOTAS)
+  if (upper.includes('MASCOTAS')) return 'mascotas';
   // Ambientación: todas las subcategorías (MIKADOS, ROSA, FLOR, MIKADO DECORATIVO)
   if (upper.includes('AMBIENTACION')) return 'ambientacion';
   return null;
@@ -97,7 +115,7 @@ export default function CrearPedido() {
 
   // Totales por grupo de categoría (para validaciones Alta Nueva)
   const totalesPorGrupo = useMemo(() => {
-    const grupos = { geles: 0, perfumeria100ml: 0, oriental: 0, ambientacion: 0 };
+    const grupos = { geles: 0, perfumeria100ml: 0, mascotas: 0, oriental: 0, ambientacion: 0 };
     Object.entries(seleccion).forEach(([codigo, { cantidad, checked }]) => {
       if (!checked || cantidad <= 0) return;
       const producto = productos.find(p => p.codigo === codigo);
@@ -213,13 +231,15 @@ export default function CrearPedido() {
       // para calcular porcentajes de forma coherente con totalesPorGrupo
       const subtotalBase = totales.subtotalBruto;
 
-      // Límite de geles
-      const totalGeles = totalesPorGrupo.geles;
-      const gelesMaxPorPorcentaje = subtotalBase * configTarifa.gelesMaxPorcentaje;
-      const gelesMaxAbsoluto = configTarifa.gelesMaxPVL;
-      if (totalGeles > gelesMaxPorPorcentaje || totalGeles > gelesMaxAbsoluto) {
-        const limitePct = (configTarifa.gelesMaxPorcentaje * 100).toFixed(0);
-        errs.gelesAlta = `Tarifa ${tarifaAlta}: Geles (${totalGeles.toFixed(2)} €) superan el máx. ${limitePct}% del pedido (${gelesMaxPorPorcentaje.toFixed(2)} €) o el tope de ${gelesMaxAbsoluto} € PVL`;
+      // Límite de geles (solo si la tarifa tiene restricción)
+      if (configTarifa.gelesMaxPorcentaje != null) {
+        const totalGeles = totalesPorGrupo.geles;
+        const gelesMaxPorPorcentaje = subtotalBase * configTarifa.gelesMaxPorcentaje;
+        const gelesMaxAbsoluto = configTarifa.gelesMaxPVL;
+        if (totalGeles > gelesMaxPorPorcentaje || totalGeles > gelesMaxAbsoluto) {
+          const limitePct = (configTarifa.gelesMaxPorcentaje * 100).toFixed(0);
+          errs.gelesAlta = `Tarifa ${tarifaAlta}: Geles (${totalGeles.toFixed(2)} €) superan el máx. ${limitePct}% del pedido (${gelesMaxPorPorcentaje.toFixed(2)} €) o el tope de ${gelesMaxAbsoluto} € PVL`;
+        }
       }
 
       // Requisito mínimo de categorías (suma de perfumería 100ml + oriental + ambientación según tarifa)
@@ -243,8 +263,10 @@ export default function CrearPedido() {
     return errs;
   }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, totales.subtotal, totales.subtotalBruto, avisosCajas, altaNueva, tarifaAlta, configTarifa, totalesPorGrupo]);
 
+  const [enviarComercial, setEnviarComercial] = useState(false);
   const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
   const [emailStatus, setEmailStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
+  const [comercialStatus, setComercialStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
 
   const handleCrearPedido = async () => {
     const errs = validar();
@@ -301,6 +323,8 @@ export default function CrearPedido() {
     setModal(pedido.id);
     setSfStatus('enviando');
     if (pedido.email_cliente) setEmailStatus('enviando');
+    const comercialInfo = COMERCIALES_ZONA[zona];
+    if (enviarComercial && comercialInfo) setComercialStatus('enviando');
 
     // Envío automático a Sellforge
     try {
@@ -329,12 +353,27 @@ export default function CrearPedido() {
         setEmailStatus({ tipo: 'error', texto: `Error al enviar email: ${err.message}` });
       }
     }
+
+    // Envío copia al comercial de zona
+    if (enviarComercial && comercialInfo && isEmailConfigured()) {
+      try {
+        await enviarPedidoEmail(pedido, comercialInfo.email);
+        actualizarPedido(pedido.id, {
+          emailComercial: { fecha: new Date().toISOString(), destino: comercialInfo.email, nombre: comercialInfo.nombre }
+        });
+        setComercialStatus({ tipo: 'ok', texto: `Copia enviada a ${comercialInfo.nombre} (${comercialInfo.email})` });
+      } catch (err) {
+        setComercialStatus({ tipo: 'error', texto: `Error al enviar al comercial: ${err.message}` });
+      }
+    }
   };
 
   const cerrarModal = () => {
     setModal(null);
     setSfStatus(null);
     setEmailStatus(null);
+    setComercialStatus(null);
+    setEnviarComercial(false);
     setCodigoCliente('');
     setNombreCliente('');
     setEmailCliente('');
@@ -440,9 +479,9 @@ export default function CrearPedido() {
                   className={`w-full px-3 py-2.5 border-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white ${errores.tarifaAlta ? 'border-red-400' : 'border-gray-200 focus:border-blue-500'}`}
                 >
                   <option value="">Selecciona tarifa...</option>
-                  <option value="M">M - Dto. 5% (min. 600 &euro;)</option>
-                  <option value="L">L - Dto. 8% (min. 1.000 &euro;)</option>
-                  <option value="XL">XL - Dto. 10% (min. 1.500 &euro;)</option>
+                  <option value="M">M - Dto. 3% (min. 600 &euro;)</option>
+                  <option value="L">L - Dto. 5% (min. 1.000 &euro;)</option>
+                  <option value="XL">XL - Dto. 8% (min. 1.500 &euro;)</option>
                 </select>
                 {errores.tarifaAlta && <p className="text-red-500 text-xs mt-1">{errores.tarifaAlta}</p>}
               </div>
@@ -452,7 +491,9 @@ export default function CrearPedido() {
                 <div className="w-full p-2.5 bg-purple-50 border-2 border-purple-200 rounded-lg text-xs text-purple-800">
                   <p className="font-bold mb-1">Promocion {tarifaAlta}:</p>
                   <p>Dto. {(configTarifa.descuento * 100).toFixed(0)}% | Min. {configTarifa.pedidoMinimo} &euro;</p>
-                  <p>Geles max. {(configTarifa.gelesMaxPorcentaje * 100).toFixed(0)}% (hasta {configTarifa.gelesMaxPVL} &euro;)</p>
+                  {configTarifa.gelesMaxPorcentaje != null && (
+                    <p>Geles max. {(configTarifa.gelesMaxPorcentaje * 100).toFixed(0)}% (hasta {configTarifa.gelesMaxPVL} &euro;)</p>
+                  )}
                   <p>Min. {(configTarifa.requisitoMinPorcentaje * 100).toFixed(0)}% en {configTarifa.requisitoLabel}</p>
                 </div>
               </div>
@@ -494,6 +535,22 @@ export default function CrearPedido() {
             rows={3}
             className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y text-sm"
           />
+
+          {/* Enviar copia al comercial de zona */}
+          {zona && COMERCIALES_ZONA[zona] && (
+            <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={enviarComercial}
+                onChange={(e) => setEnviarComercial(e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-sm text-gray-700">
+                Enviar copia del pedido al comercial de zona
+                <span className="text-gray-500 ml-1">({COMERCIALES_ZONA[zona].nombre})</span>
+              </span>
+            </label>
+          )}
         </div>
       </main>
 
@@ -554,9 +611,29 @@ export default function CrearPedido() {
               </div>
             )}
 
+            {/* Estado envío Email Comercial */}
+            {comercialStatus === 'enviando' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Enviando copia al comercial de zona...
+              </div>
+            )}
+            {comercialStatus?.tipo === 'ok' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                <Check className="w-4 h-4" />
+                {comercialStatus.texto}
+              </div>
+            )}
+            {comercialStatus?.tipo === 'error' && (
+              <div className="flex items-start gap-2 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-left">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {comercialStatus.texto}
+              </div>
+            )}
+
             <button
               onClick={cerrarModal}
-              disabled={sfStatus === 'enviando' || emailStatus === 'enviando'}
+              disabled={sfStatus === 'enviando' || emailStatus === 'enviando' || comercialStatus === 'enviando'}
               className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Aceptar
