@@ -36,14 +36,32 @@ function generarHTMLPedido(pedido) {
     </tr>
   `).join('');
 
+  // Cabecera: Alta Nueva + Tarifa si aplica
+  const altaNuevaLabel = pedido.alta_nueva ? `<div><strong>Alta Nueva:</strong> Tarifa ${pedido.alta_nueva}</div>` : '';
+
+  // Subtotal bruto (antes de descuentos)
+  const subtotalBruto = pedido.totales.subtotal_sin_descuento || pedido.totales.subtotal;
+
+  // Descuento Alta Nueva
+  const descuentoAltaNueva = pedido.totales.descuento_alta_nueva || 0;
+
+  // Comentarios
+  const comentariosHTML = pedido.comentarios
+    ? `<div style="margin-top:20px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px">
+        <div style="font-weight:700;color:#92400e;margin-bottom:6px;text-transform:uppercase;font-size:12px">Comentarios</div>
+        <div style="color:#78350f;white-space:pre-line">${pedido.comentarios}</div>
+      </div>`
+    : '';
+
   return `
     <div style="font-family:system-ui,sans-serif;max-width:700px;margin:0 auto">
       <h2 style="color:#000;margin-bottom:4px">Betr&eacute;s ON</h2>
       <p style="color:#666;margin-top:0">Pedido - ${formatFecha(pedido.fecha)}</p>
-      <div style="display:flex;gap:30px;margin:16px 0;padding:12px;background:#f9fafb;border-radius:8px;font-size:14px">
+      <div style="display:flex;flex-wrap:wrap;gap:20px;margin:16px 0;padding:12px;background:#f9fafb;border-radius:8px;font-size:14px">
         <div><strong>Cliente:</strong> ${nombreDisplay}</div>
         <div><strong>ID/CIF:</strong> ${idDisplay}</div>
         <div><strong>Zona:</strong> ${pedido.zona || '—'}</div>
+        ${altaNuevaLabel}
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="background:#f1f5f9">
@@ -56,11 +74,13 @@ function generarHTMLPedido(pedido) {
         <tbody>${lineasHTML}</tbody>
       </table>
       <div style="margin-top:16px;text-align:right;font-size:14px;line-height:2">
-        <div>Subtotal: <strong>${pedido.totales.subtotal.toFixed(2)} &euro;</strong></div>
+        <div>Subtotal: <strong>${subtotalBruto.toFixed(2)} &euro;</strong></div>
         ${(pedido.totales.descuento_2x1 || 0) > 0 ? `<div style="color:#c2410c">Promo 2x1: <strong>-${pedido.totales.descuento_2x1.toFixed(2)} &euro;</strong></div>` : ''}
+        ${descuentoAltaNueva > 0 ? `<div style="color:#7c3aed">Dto. Alta Nueva (${pedido.alta_nueva}): <strong>-${descuentoAltaNueva.toFixed(2)} &euro;</strong></div>` : ''}
         <div>IVA (21%): <strong>${pedido.totales.iva.toFixed(2)} &euro;</strong></div>
         <div style="font-size:18px;margin-top:6px;border-top:2px solid #000;padding-top:6px">TOTAL: <strong>${pedido.totales.total.toFixed(2)} &euro;</strong></div>
       </div>
+      ${comentariosHTML}
     </div>
   `;
 }
