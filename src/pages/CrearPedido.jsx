@@ -7,6 +7,7 @@ import ResumenPedido from '../components/ResumenPedido';
 import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado, esCategoríaSinSurtido, esCategoríaFacial, getSubgrupoFacial } from '../services/preciosService';
 import { guardarPedido, actualizarPedido } from '../services/pedidosService';
 import { enviarPedidoSellforge } from '../services/sellforgeService';
+import { enviarPedidoEmail, isEmailConfigured } from '../services/emailService';
 import { CIUDADES_ZONAS } from '../services/authService';
 
 // --- Configuración tarifas Alta Nueva ---
@@ -85,6 +86,7 @@ export default function CrearPedido() {
   const [comentarios, setComentarios] = useState('');
   const [modal, setModal] = useState(null);
   const [errores, setErrores] = useState({});
+  const [emailCliente, setEmailCliente] = useState('');
   const [altaNueva, setAltaNueva] = useState('no');
   const [tarifaAlta, setTarifaAlta] = useState('');
 
@@ -242,6 +244,7 @@ export default function CrearPedido() {
   }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, totales.subtotal, totales.subtotalBruto, avisosCajas, altaNueva, tarifaAlta, configTarifa, totalesPorGrupo]);
 
   const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
+  const [emailStatus, setEmailStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
 
   const handleCrearPedido = async () => {
     const errs = validar();
@@ -279,6 +282,7 @@ export default function CrearPedido() {
     const pedido = guardarPedido({
       codigo_cliente: codigoCliente.trim(),
       nombre_cliente: nombreCliente.trim(),
+      email_cliente: emailCliente.trim() || null,
       zona,
       comentarios: comentariosFinal,
       alta_nueva: altaNueva === 'si' ? tarifaAlta : null,
@@ -296,6 +300,7 @@ export default function CrearPedido() {
 
     setModal(pedido.id);
     setSfStatus('enviando');
+    if (pedido.email_cliente) setEmailStatus('enviando');
 
     // Envío automático a Sellforge
     try {
@@ -311,13 +316,28 @@ export default function CrearPedido() {
     } catch (err) {
       setSfStatus({ tipo: 'error', texto: `Error al enviar a Sellforge: ${err.message}. Puedes reenviarlo desde el panel de administración.` });
     }
+
+    // Envío automático de email al cliente
+    if (pedido.email_cliente && isEmailConfigured()) {
+      try {
+        await enviarPedidoEmail(pedido, pedido.email_cliente);
+        actualizarPedido(pedido.id, {
+          emailEnviado: { fecha: new Date().toISOString(), destino: pedido.email_cliente }
+        });
+        setEmailStatus({ tipo: 'ok', texto: `Email enviado a ${pedido.email_cliente}` });
+      } catch (err) {
+        setEmailStatus({ tipo: 'error', texto: `Error al enviar email: ${err.message}` });
+      }
+    }
   };
 
   const cerrarModal = () => {
     setModal(null);
     setSfStatus(null);
+    setEmailStatus(null);
     setCodigoCliente('');
     setNombreCliente('');
+    setEmailCliente('');
     setCiudadSeleccionada('');
     setSeleccion({});
     setComentarios('');
@@ -346,7 +366,7 @@ export default function CrearPedido() {
       <main className="max-w-7xl mx-auto px-4 py-6 pb-28">
         <div className="bg-white rounded-lg shadow-md p-5 mb-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Datos del cliente</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Código de Cliente o CIF/NIF *</label>
               <input
@@ -382,6 +402,16 @@ export default function CrearPedido() {
                 ))}
               </select>
               {errores.zona && <p className="text-red-500 text-xs mt-1">{errores.zona}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email del cliente</label>
+              <input
+                type="email"
+                value={emailCliente}
+                onChange={(e) => setEmailCliente(e.target.value)}
+                placeholder="cliente@email.com"
+                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
           </div>
 
@@ -504,9 +534,29 @@ export default function CrearPedido() {
               </div>
             )}
 
+            {/* Estado envío Email */}
+            {emailStatus === 'enviando' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Enviando email al cliente...
+              </div>
+            )}
+            {emailStatus?.tipo === 'ok' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                <Check className="w-4 h-4" />
+                {emailStatus.texto}
+              </div>
+            )}
+            {emailStatus?.tipo === 'error' && (
+              <div className="flex items-start gap-2 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-left">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {emailStatus.texto}
+              </div>
+            )}
+
             <button
               onClick={cerrarModal}
-              disabled={sfStatus === 'enviando'}
+              disabled={sfStatus === 'enviando' || emailStatus === 'enviando'}
               className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Aceptar
