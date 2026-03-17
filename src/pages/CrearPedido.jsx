@@ -264,7 +264,7 @@ export default function CrearPedido() {
     return errs;
   }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, totales.subtotal, totales.subtotalBruto, avisosCajas, altaNueva, tarifaAlta, configTarifa, totalesPorGrupo]);
 
-  const [enviarComercial, setEnviarComercial] = useState(false);
+  const [enviarComercial, setEnviarComercial] = useState(true);
   const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error'|'offline', texto:string}
   const [emailStatus, setEmailStatus] = useState(null);
   const [comercialStatus, setComercialStatus] = useState(null);
