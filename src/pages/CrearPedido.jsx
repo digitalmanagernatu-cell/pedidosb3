@@ -31,12 +31,12 @@ const TARIFAS_ALTA_NUEVA = {
   M: {
     pedidoMinimo: 600,
     descuento: 0.03,
-    gelesMaxPorcentaje: null,
-    gelesMaxPVL: null,
+    gelesMaxPorcentaje: 0.20,
+    gelesMaxPVL: 120,
     requisitoMinPorcentaje: 0.50,
     requisitoCategoriasValidas: ['perfumeria100ml', 'mascotas', 'oriental', 'ambientacion'],
     requisitoLabel: 'perfumería 100ml, col. mascotas, perf. oriental y ambientación',
-    comentarioAuto: 'Alta Nueva PROMOCIÓN M\n3% descuento directo\n3% en reposición durante 30 días F.F.\nPago a 60 días F.F.\nPromoción no acumulable con otros descuentos activos',
+    comentarioAuto: 'Alta Nueva PROMOCIÓN M\n3% descuento directo\n3% en reposición durante 30 días F.F.\nTesters incluidos en perfumes 100ml (1 c/ 2 cajas misma ref.)\nGeles máx. 20% del pedido (hasta 120 € PVL)\nPago a 60 días F.F.\nPromoción no acumulable con otros descuentos activos',
   },
   L: {
     pedidoMinimo: 1000,
