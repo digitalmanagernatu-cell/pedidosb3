@@ -537,20 +537,22 @@ export default function CrearPedido() {
           />
 
           {/* Enviar copia al comercial de zona */}
-          {zona && COMERCIALES_ZONA[zona] && (
-            <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={enviarComercial}
-                onChange={(e) => setEnviarComercial(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-              />
-              <span className="text-sm text-gray-700">
-                Enviar copia del pedido al comercial de zona
+          <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={enviarComercial}
+              onChange={(e) => setEnviarComercial(e.target.checked)}
+              disabled={!zona || !COMERCIALES_ZONA[zona]}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className={`text-sm ${!zona || !COMERCIALES_ZONA[zona] ? 'text-gray-400' : 'text-gray-700'}`}>
+              Enviar copia del pedido al comercial de zona
+              {zona && COMERCIALES_ZONA[zona] && (
                 <span className="text-gray-500 ml-1">({COMERCIALES_ZONA[zona].nombre})</span>
-              </span>
-            </label>
-          )}
+              )}
+              {!zona && <span className="text-gray-400 ml-1">(selecciona una zona primero)</span>}
+            </span>
+          </label>
         </div>
       </main>
 
