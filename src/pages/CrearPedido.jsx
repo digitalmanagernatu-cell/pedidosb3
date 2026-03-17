@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Settings, Check, AlertTriangle, Loader2, WifiOff, RefreshCw } from 'lucide-react';
 import { getProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
@@ -9,6 +9,7 @@ import { guardarPedido, actualizarPedido } from '../services/pedidosService';
 import { enviarPedidoSellforge } from '../services/sellforgeService';
 import { enviarPedidoEmail, isEmailConfigured } from '../services/emailService';
 import { CIUDADES_ZONAS } from '../services/authService';
+import { encolarPedido, getPendientesCount, onSyncChange, iniciarAutoSync, sincronizarPendientes } from '../services/syncService';
 
 // --- Mapa zona comercial → email del comercial ---
 const COMERCIALES_ZONA = {
@@ -264,9 +265,29 @@ export default function CrearPedido() {
   }, [codigoCliente, nombreCliente, ciudadSeleccionada, totales.totalProductos, totales.subtotal, totales.subtotalBruto, avisosCajas, altaNueva, tarifaAlta, configTarifa, totalesPorGrupo]);
 
   const [enviarComercial, setEnviarComercial] = useState(false);
-  const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
-  const [emailStatus, setEmailStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
-  const [comercialStatus, setComercialStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
+  const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error'|'offline', texto:string}
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [comercialStatus, setComercialStatus] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendientesSync, setPendientesSync] = useState(getPendientesCount());
+
+  // Detectar cambios de conexión y auto-sincronizar
+  useEffect(() => {
+    iniciarAutoSync();
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const unsubscribe = onSyncChange((count) => setPendientesSync(count));
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      unsubscribe();
+    };
+  }, []);
 
   const handleCrearPedido = async () => {
     const errs = validar();
@@ -320,13 +341,36 @@ export default function CrearPedido() {
       }
     });
 
+    const comercialInfo = COMERCIALES_ZONA[zona];
+    const quiereEmailCliente = pedido.email_cliente && isEmailConfigured();
+    const quiereEmailComercial = enviarComercial && comercialInfo && isEmailConfigured();
+
+    // Si no hay conexión, encolar todo y mostrar modal offline
+    if (!navigator.onLine) {
+      encolarPedido({
+        pedidoId: pedido.id,
+        sellforge: true,
+        emailCliente: quiereEmailCliente ? pedido.email_cliente : null,
+        emailComercial: quiereEmailComercial ? { email: comercialInfo.email, nombre: comercialInfo.nombre } : null
+      });
+      setModal(pedido.id);
+      setSfStatus({ tipo: 'offline', texto: 'Sin conexión. Se enviará automáticamente cuando se recupere.' });
+      if (quiereEmailCliente) setEmailStatus({ tipo: 'offline', texto: 'Pendiente de envío (sin conexión)' });
+      if (quiereEmailComercial) setComercialStatus({ tipo: 'offline', texto: 'Pendiente de envío (sin conexión)' });
+      return;
+    }
+
+    // Con conexión: intentar enviar, si falla encolar
     setModal(pedido.id);
     setSfStatus('enviando');
-    if (pedido.email_cliente) setEmailStatus('enviando');
-    const comercialInfo = COMERCIALES_ZONA[zona];
-    if (enviarComercial && comercialInfo) setComercialStatus('enviando');
+    if (quiereEmailCliente) setEmailStatus('enviando');
+    if (quiereEmailComercial) setComercialStatus('enviando');
 
-    // Envío automático a Sellforge
+    let sfOk = false;
+    let emailOk = !quiereEmailCliente;
+    let comercialOk = !quiereEmailComercial;
+
+    // Envío a Sellforge
     try {
       const result = await enviarPedidoSellforge(pedido);
       actualizarPedido(pedido.id, {
@@ -337,34 +381,47 @@ export default function CrearPedido() {
         }
       });
       setSfStatus({ tipo: 'ok', texto: `Enviado a Sellforge. Código: ${result.code}` });
+      sfOk = true;
     } catch (err) {
-      setSfStatus({ tipo: 'error', texto: `Error al enviar a Sellforge: ${err.message}. Puedes reenviarlo desde el panel de administración.` });
+      setSfStatus({ tipo: 'error', texto: `Error: ${err.message}. Se reintentará automáticamente.` });
     }
 
-    // Envío automático de email al cliente
-    if (pedido.email_cliente && isEmailConfigured()) {
+    // Email cliente
+    if (quiereEmailCliente) {
       try {
         await enviarPedidoEmail(pedido, pedido.email_cliente);
         actualizarPedido(pedido.id, {
           emailEnviado: { fecha: new Date().toISOString(), destino: pedido.email_cliente }
         });
         setEmailStatus({ tipo: 'ok', texto: `Email enviado a ${pedido.email_cliente}` });
+        emailOk = true;
       } catch (err) {
-        setEmailStatus({ tipo: 'error', texto: `Error al enviar email: ${err.message}` });
+        setEmailStatus({ tipo: 'error', texto: `Error: ${err.message}. Se reintentará.` });
       }
     }
 
-    // Envío copia al comercial de zona
-    if (enviarComercial && comercialInfo && isEmailConfigured()) {
+    // Email comercial
+    if (quiereEmailComercial) {
       try {
         await enviarPedidoEmail(pedido, comercialInfo.email);
         actualizarPedido(pedido.id, {
           emailComercial: { fecha: new Date().toISOString(), destino: comercialInfo.email, nombre: comercialInfo.nombre }
         });
         setComercialStatus({ tipo: 'ok', texto: `Copia enviada a ${comercialInfo.nombre} (${comercialInfo.email})` });
+        comercialOk = true;
       } catch (err) {
-        setComercialStatus({ tipo: 'error', texto: `Error al enviar al comercial: ${err.message}` });
+        setComercialStatus({ tipo: 'error', texto: `Error: ${err.message}. Se reintentará.` });
       }
+    }
+
+    // Si algo falló, encolar lo que no se envió para reintento automático
+    if (!sfOk || !emailOk || !comercialOk) {
+      encolarPedido({
+        pedidoId: pedido.id,
+        sellforge: !sfOk,
+        emailCliente: !emailOk ? pedido.email_cliente : null,
+        emailComercial: !comercialOk ? { email: comercialInfo.email, nombre: comercialInfo.nombre } : null
+      });
     }
   };
 
@@ -388,17 +445,35 @@ export default function CrearPedido() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+        {!isOnline && (
+          <div className="bg-amber-500 text-white text-center py-1.5 text-sm font-medium flex items-center justify-center gap-2">
+            <WifiOff className="w-4 h-4" />
+            Sin conexión — Los pedidos se guardan localmente y se enviarán al recuperar la conexión
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">
             Betrés ON — <span className="text-blue-600">Crear Pedido</span>
           </h1>
-          <button
-            onClick={() => navigate('/login')}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Settings className="w-4 h-4" />
-            Admin
-          </button>
+          <div className="flex items-center gap-3">
+            {pendientesSync > 0 && (
+              <button
+                onClick={() => sincronizarPendientes()}
+                disabled={!isOnline}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                {pendientesSync} pendiente{pendientesSync > 1 ? 's' : ''}
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/login')}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+            >
+              <Settings className="w-4 h-4" />
+              Admin
+            </button>
+          </div>
         </div>
       </header>
 
@@ -592,6 +667,12 @@ export default function CrearPedido() {
                 {sfStatus.texto}
               </div>
             )}
+            {sfStatus?.tipo === 'offline' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                <WifiOff className="w-4 h-4" />
+                {sfStatus.texto}
+              </div>
+            )}
 
             {/* Estado envío Email */}
             {emailStatus === 'enviando' && (
@@ -612,6 +693,12 @@ export default function CrearPedido() {
                 {emailStatus.texto}
               </div>
             )}
+            {emailStatus?.tipo === 'offline' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                <WifiOff className="w-4 h-4" />
+                {emailStatus.texto}
+              </div>
+            )}
 
             {/* Estado envío Email Comercial */}
             {comercialStatus === 'enviando' && (
@@ -629,6 +716,12 @@ export default function CrearPedido() {
             {comercialStatus?.tipo === 'error' && (
               <div className="flex items-start gap-2 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-left">
                 <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {comercialStatus.texto}
+              </div>
+            )}
+            {comercialStatus?.tipo === 'offline' && (
+              <div className="flex items-center justify-center gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                <WifiOff className="w-4 h-4" />
                 {comercialStatus.texto}
               </div>
             )}
