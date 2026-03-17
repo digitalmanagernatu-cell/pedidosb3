@@ -37,13 +37,17 @@ function generarHTMLPedido(pedido) {
   `).join('');
 
   // Cabecera: Alta Nueva + Tarifa si aplica
-  const altaNuevaLabel = pedido.alta_nueva ? `<div><strong>Alta Nueva:</strong> Tarifa ${pedido.alta_nueva}</div>` : '';
+  const altaNuevaLabel = pedido.alta_nueva
+    ? `<div><strong>Alta Nueva:</strong> Tarifa ${pedido.alta_nueva}</div>`
+    : '';
 
-  // Subtotal bruto (antes de descuentos)
-  const subtotalBruto = pedido.totales.subtotal_sin_descuento || pedido.totales.subtotal;
-
-  // Descuento Alta Nueva
+  // Totales — replicar exactamente el DetallePedido
+  const subtotal = pedido.totales.subtotal;
+  const ahorro = pedido.totales.ahorro || 0;
+  const descuento2x1 = pedido.totales.descuento_2x1 || 0;
   const descuentoAltaNueva = pedido.totales.descuento_alta_nueva || 0;
+  const iva = pedido.totales.iva;
+  const total = pedido.totales.total;
 
   // Comentarios
   const comentariosHTML = pedido.comentarios
@@ -74,11 +78,12 @@ function generarHTMLPedido(pedido) {
         <tbody>${lineasHTML}</tbody>
       </table>
       <div style="margin-top:16px;text-align:right;font-size:14px;line-height:2">
-        <div>Subtotal: <strong>${subtotalBruto.toFixed(2)} &euro;</strong></div>
-        ${(pedido.totales.descuento_2x1 || 0) > 0 ? `<div style="color:#c2410c">Promo 2x1: <strong>-${pedido.totales.descuento_2x1.toFixed(2)} &euro;</strong></div>` : ''}
-        ${descuentoAltaNueva > 0 ? `<div style="color:#7c3aed">Dto. Alta Nueva (${pedido.alta_nueva}): <strong>-${descuentoAltaNueva.toFixed(2)} &euro;</strong></div>` : ''}
-        <div>IVA (21%): <strong>${pedido.totales.iva.toFixed(2)} &euro;</strong></div>
-        <div style="font-size:18px;margin-top:6px;border-top:2px solid #000;padding-top:6px">TOTAL: <strong>${pedido.totales.total.toFixed(2)} &euro;</strong></div>
+        <div>Subtotal: <strong>${subtotal.toFixed(2)} &euro;</strong></div>
+        ${ahorro > 0 ? `<div style="color:#16a34a">Ahorro escalado: <strong>${ahorro.toFixed(2)} &euro;</strong></div>` : ''}
+        ${descuento2x1 > 0 ? `<div style="color:#c2410c">Promo 2x1: <strong>-${descuento2x1.toFixed(2)} &euro;</strong></div>` : ''}
+        ${descuentoAltaNueva > 0 ? `<div style="color:#7c3aed">Dto. Alta Nueva${pedido.alta_nueva ? ` (${pedido.alta_nueva})` : ''}: <strong>-${descuentoAltaNueva.toFixed(2)} &euro;</strong></div>` : ''}
+        <div>IVA (21%): <strong>${iva.toFixed(2)} &euro;</strong></div>
+        <div style="font-size:18px;margin-top:6px;border-top:2px solid #000;padding-top:6px">TOTAL: <strong style="color:#2563eb">${total.toFixed(2)} &euro;</strong></div>
       </div>
       ${comentariosHTML}
     </div>
