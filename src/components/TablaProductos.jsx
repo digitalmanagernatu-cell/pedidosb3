@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Search, AlertTriangle } from 'lucide-react';
-import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado, esCategoríaSinSurtido, esCategoríaFacial, getSubgrupoFacial } from '../services/preciosService';
+import { Search, AlertTriangle, TrendingDown } from 'lucide-react';
+import { calcularPrecioUnitario, calcularAhorro, tieneEscalado, getEscaladosCategoria, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado, esCategoríaSinSurtido, esCategoríaFacial, getSubgrupoFacial, esCategoríaCajasCompletas, getSiguienteTramoEscalado } from '../services/preciosService';
 
 function EscaladoBadge({ producto }) {
   const [mostrar, setMostrar] = useState(false);
@@ -71,10 +71,19 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
     return grupos;
   }, [productosFiltrados]);
 
+  const getStep = (producto) => {
+    if (esCategoríaCajasCompletas(producto.categoria) && producto.udCaja > 1) {
+      return producto.udCaja;
+    }
+    return 1;
+  };
+
   const handleCheck = (codigo, checked) => {
     const nuevo = { ...seleccion };
     if (checked) {
-      nuevo[codigo] = { cantidad: 1, checked: true };
+      const producto = productos.find(p => p.codigo === codigo);
+      const step = producto ? getStep(producto) : 1;
+      nuevo[codigo] = { cantidad: step, checked: true };
     } else {
       delete nuevo[codigo];
     }
@@ -162,6 +171,8 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
               const precioUnit = isChecked ? calcularPrecioUnitario(producto, cantidad, totalCat) : producto.pvl;
               const subtotal = isChecked ? precioUnit * cantidad : 0;
               const ahorro = isChecked ? calcularAhorro(producto, cantidad, totalCat) : 0;
+              const step = getStep(producto);
+              const siguienteTramo = isChecked && catEsc ? getSiguienteTramoEscalado(producto, totalCat) : null;
 
               return (
                 <tr
@@ -194,6 +205,7 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                     <input
                       type="number"
                       min="0"
+                      step={step}
                       value={isChecked ? cantidad : ''}
                       onChange={(e) => handleCantidad(producto.codigo, e.target.value)}
                       onFocus={() => { if (!isChecked) handleCheck(producto.codigo, true); }}
@@ -204,6 +216,12 @@ export default function TablaProductos({ productos, seleccion, onSeleccionChange
                     <span className={ahorro > 0 ? 'text-green-600 font-semibold' : 'text-gray-700'}>
                       {precioUnit.toFixed(2)} €
                     </span>
+                    {siguienteTramo && (
+                      <div className="text-[10px] text-blue-600 mt-0.5 whitespace-nowrap">
+                        <TrendingDown className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+                        {siguienteTramo.faltan} uds → {siguienteTramo.siguientePrecio.toFixed(2)} €
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-right text-gray-500">
                     {producto.pvpRec ? `${producto.pvpRec.toFixed(2)} €` : '—'}

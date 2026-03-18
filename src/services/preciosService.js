@@ -57,6 +57,22 @@ export function esCategoríaSinSurtido(categoria) {
   return CATEGORIAS_SIN_SURTIDO.some(c => cat.includes(c));
 }
 
+// Categorías donde la cantidad sube/baja en cajas completas
+const CATEGORIAS_CAJAS_COMPLETAS = [
+  'FACIAL', 'CHAMPÚ', 'CHAMPUS', 'JABONES', 'GELES',
+  'HAIR & BODY MIST', 'BODY MIST',
+  'BRUMA MASCOTAS', 'AMBIENTACION', 'AMBIENTACIÓN',
+  'PACK CHERRY', 'AGUA COLONIA',
+];
+
+export function esCategoríaCajasCompletas(categoria) {
+  const cat = (categoria || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  return CATEGORIAS_CAJAS_COMPLETAS.some(c => {
+    const norm = c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    return cat.includes(norm);
+  });
+}
+
 // Subgrupos para línea facial
 const FACIAL_SUBGRUPOS = {
   SERUM: ['SERUM', 'SÉRUM'],
@@ -187,4 +203,35 @@ export function calcularDescuento2x1(seleccion, productos) {
   });
 
   return descuento;
+}
+
+/**
+ * Calcula cuántas unidades faltan para el siguiente tramo de escalado.
+ * @param {Object} producto
+ * @param {number} totalCategoria - Total de unidades de la categoría
+ * @returns {{ faltan: number, siguientePrecio: number, precioActual: number } | null}
+ */
+export function getSiguienteTramoEscalado(producto, totalCategoria) {
+  const categoria = determinarCategoriaEscalado(producto);
+  if (!categoria || totalCategoria == null) return null;
+
+  const escalados = TARIFAS[categoria];
+  // Encontrar el tramo actual y el siguiente
+  let tramoActualIdx = 0;
+  for (let i = escalados.length - 1; i >= 0; i--) {
+    if (totalCategoria >= escalados[i].desde) {
+      tramoActualIdx = i;
+      break;
+    }
+  }
+
+  // Si ya está en el último tramo, no hay siguiente
+  if (tramoActualIdx >= escalados.length - 1) return null;
+
+  const siguiente = escalados[tramoActualIdx + 1];
+  return {
+    faltan: siguiente.desde - totalCategoria,
+    siguientePrecio: siguiente.precio,
+    precioActual: escalados[tramoActualIdx].precio
+  };
 }
