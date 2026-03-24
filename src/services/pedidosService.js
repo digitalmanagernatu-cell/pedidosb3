@@ -1,8 +1,13 @@
 import { isFirebaseConfigured, getDb } from './firebaseConfig';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 const STORAGE_KEY = 'pedidos';
+const DELETED_KEY = 'pedidos_eliminados';
 const COLLECTION = 'pedidos';
+
+// --- Listener en tiempo real ---
+let _onSnapshotUnsub = null;
+let _onChangeCallback = null;
 
 // --- localStorage (siempre disponible) ---
 
@@ -13,6 +18,21 @@ function getLocal() {
 
 function setLocal(pedidos) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(pedidos));
+}
+
+// --- Registro de eliminados (para que sync no los re-agregue) ---
+
+function getDeletedIds() {
+  const data = localStorage.getItem(DELETED_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
+function addDeletedId(id) {
+  const ids = getDeletedIds();
+  if (!ids.includes(Number(id))) {
+    ids.push(Number(id));
+    localStorage.setItem(DELETED_KEY, JSON.stringify(ids));
+  }
 }
 
 // --- Firestore (si está configurado) ---
@@ -77,6 +97,7 @@ export function actualizarPedido(id, cambios) {
 export function eliminarPedido(id) {
   const pedidos = getLocal().filter(p => p.id !== Number(id));
   setLocal(pedidos);
+  addDeletedId(id);
   firestoreEliminar(id);
 }
 
@@ -99,11 +120,57 @@ export function getEstadisticas() {
 }
 
 /**
- * Sincroniza pedidos entre Firestore y localStorage (bidireccional).
- * - Pedidos que solo existen en Firestore → se copian a local
- * - Pedidos que solo existen en local → se suben a Firestore
- * - Pedidos que existen en ambos → se queda la versión más reciente (_updatedAt)
- * Devuelve true si se sincronizó, false si Firebase no está configurado.
+ * Merge inteligente entre pedidos de Firestore y localStorage.
+ * Respeta la lista de eliminados para no re-agregar pedidos borrados.
+ */
+function mergePedidos(pedidosFirestore, locales) {
+  const deletedIds = getDeletedIds();
+
+  const mapFirestore = new Map();
+  pedidosFirestore.forEach(p => mapFirestore.set(Number(p.id), p));
+
+  const mapLocal = new Map();
+  locales.forEach(p => mapLocal.set(Number(p.id), p));
+
+  const todosIds = new Set([...mapFirestore.keys(), ...mapLocal.keys()]);
+  const merged = [];
+  const pendientesSubir = [];
+
+  for (const id of todosIds) {
+    // Si fue eliminado localmente, no re-agregar
+    if (deletedIds.includes(id)) continue;
+
+    const enFirestore = mapFirestore.get(id);
+    const enLocal = mapLocal.get(id);
+
+    if (enFirestore && !enLocal) {
+      merged.push(enFirestore);
+    } else if (!enFirestore && enLocal) {
+      merged.push(enLocal);
+      pendientesSubir.push(enLocal);
+    } else {
+      const tsFirestore = enFirestore._updatedAt || new Date(enFirestore.fecha).getTime() || 0;
+      const tsLocal = enLocal._updatedAt || new Date(enLocal.fecha).getTime() || 0;
+
+      if (tsLocal > tsFirestore) {
+        merged.push(enLocal);
+        pendientesSubir.push(enLocal);
+      } else if (tsFirestore > tsLocal) {
+        merged.push(enFirestore);
+      } else {
+        const combinado = { ...enFirestore, ...enLocal, _updatedAt: Date.now() };
+        merged.push(combinado);
+        pendientesSubir.push(combinado);
+      }
+    }
+  }
+
+  return { merged, pendientesSubir };
+}
+
+/**
+ * Sincronización bidireccional con merge inteligente.
+ * Ahora respeta eliminaciones locales.
  */
 export async function sincronizarDesdeFirestore() {
   if (!isFirebaseConfigured()) return false;
@@ -116,61 +183,75 @@ export async function sincronizarDesdeFirestore() {
     });
 
     const locales = getLocal();
-
-    // Indexar por ID para merge inteligente
-    const mapFirestore = new Map();
-    pedidosFirestore.forEach(p => mapFirestore.set(Number(p.id), p));
-
-    const mapLocal = new Map();
-    locales.forEach(p => mapLocal.set(Number(p.id), p));
-
-    // Recoger todos los IDs únicos
-    const todosIds = new Set([...mapFirestore.keys(), ...mapLocal.keys()]);
-    const merged = [];
-    const pendientesSubir = [];
-
-    for (const id of todosIds) {
-      const enFirestore = mapFirestore.get(id);
-      const enLocal = mapLocal.get(id);
-
-      if (enFirestore && !enLocal) {
-        // Solo en Firestore → copiar a local
-        merged.push(enFirestore);
-      } else if (!enFirestore && enLocal) {
-        // Solo en local → subir a Firestore
-        merged.push(enLocal);
-        pendientesSubir.push(enLocal);
-      } else {
-        // En ambos → quedarse con la versión más completa/reciente
-        const tsFirestore = enFirestore._updatedAt || new Date(enFirestore.fecha).getTime() || 0;
-        const tsLocal = enLocal._updatedAt || new Date(enLocal.fecha).getTime() || 0;
-
-        if (tsLocal > tsFirestore) {
-          // Local es más reciente → usar local y subir a Firestore
-          merged.push(enLocal);
-          pendientesSubir.push(enLocal);
-        } else if (tsFirestore > tsLocal) {
-          // Firestore es más reciente → usar Firestore
-          merged.push(enFirestore);
-        } else {
-          // Mismo timestamp → merge de campos (Firestore base + campos extra de local)
-          const combinado = { ...enFirestore, ...enLocal, _updatedAt: Date.now() };
-          merged.push(combinado);
-          pendientesSubir.push(combinado);
-        }
-      }
-    }
+    const { merged, pendientesSubir } = mergePedidos(pedidosFirestore, locales);
 
     setLocal(merged);
 
-    // Subir pedidos pendientes a Firestore
     for (const pedido of pendientesSubir) {
       await firestoreGuardar(pedido);
     }
+
+    // Limpiar eliminados que ya no existen en Firestore
+    const deletedIds = getDeletedIds();
+    const firestoreIds = new Set(pedidosFirestore.map(p => Number(p.id)));
+    const stillNeeded = deletedIds.filter(id => firestoreIds.has(id));
+    localStorage.setItem(DELETED_KEY, JSON.stringify(stillNeeded));
 
     return true;
   } catch (e) {
     console.error('Error sincronizando desde Firestore:', e);
     return false;
   }
+}
+
+/**
+ * Inicia listener en tiempo real de Firestore.
+ * Llama al callback cada vez que hay cambios en la colección.
+ */
+export function iniciarListenerPedidos(onChange) {
+  if (!isFirebaseConfigured()) return;
+  // Limpiar listener anterior
+  if (_onSnapshotUnsub) {
+    _onSnapshotUnsub();
+    _onSnapshotUnsub = null;
+  }
+
+  _onChangeCallback = onChange;
+
+  try {
+    const db = getDb();
+    _onSnapshotUnsub = onSnapshot(collection(db, COLLECTION), (snapshot) => {
+      const pedidosFirestore = [];
+      snapshot.forEach(docSnap => {
+        pedidosFirestore.push(docSnap.data());
+      });
+
+      const locales = getLocal();
+      const { merged, pendientesSubir } = mergePedidos(pedidosFirestore, locales);
+
+      setLocal(merged);
+
+      // Subir pendientes en background
+      for (const pedido of pendientesSubir) {
+        firestoreGuardar(pedido);
+      }
+
+      if (_onChangeCallback) _onChangeCallback();
+    }, (error) => {
+      console.error('Error en listener de Firestore:', error);
+    });
+  } catch (e) {
+    console.error('Error iniciando listener:', e);
+  }
+}
+
+/**
+ * Detiene el listener en tiempo real.
+ */
+export function detenerListenerPedidos() {
+  if (_onSnapshotUnsub) {
+    _onSnapshotUnsub();
+    _onSnapshotUnsub = null;
+  }
+  _onChangeCallback = null;
 }
