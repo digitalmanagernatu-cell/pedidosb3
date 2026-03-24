@@ -180,7 +180,7 @@ export default function ListaPedidos() {
         return;
       }
 
-      await setProductos(productos);
+      const { firestoreOk } = await setProductos(productos);
       setProductosSubidos(productos);
 
       // Build category summary
@@ -191,12 +191,16 @@ export default function ListaPedidos() {
       });
 
       let texto = `Tarifa actualizada: ${productos.length} productos en ${Object.keys(porCategoria).length} categorías.`;
+      if (!firestoreOk) {
+        texto += ' (guardada solo localmente — Firestore no disponible)';
+      }
       if (filasDescartadas.length > 0) {
         const ejemplos = filasDescartadas.slice(0, 5).map(f => `${f.codigo} - ${f.referencia} (fila ${f.fila}, PVL: "${f.pvl ?? 'vacío'}")`).join('; ');
         texto += ` ⚠ ${filasDescartadas.length} fila(s) descartadas: ${ejemplos}`;
         if (filasDescartadas.length > 5) texto += `... y ${filasDescartadas.length - 5} más`;
       }
-      setUploadMsg({ tipo: filasDescartadas.length > 0 ? 'warning' : 'ok', texto, porCategoria });
+      const tipo = !firestoreOk ? 'warning' : filasDescartadas.length > 0 ? 'warning' : 'ok';
+      setUploadMsg({ tipo, texto, porCategoria });
     } catch (err) {
       setUploadMsg({ tipo: 'error', texto: `Error al procesar el archivo: ${err.message}` });
     }
