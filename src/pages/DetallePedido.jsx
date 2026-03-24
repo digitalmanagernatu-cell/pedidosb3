@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Send } from 'lucide-react';
-import { getPedidoById, actualizarPedido } from '../services/pedidosService';
+import { getPedidoById, actualizarPedido, iniciarListenerPedidos, detenerListenerPedidos } from '../services/pedidosService';
 import { enviarPedidoSellforge } from '../services/sellforgeService';
 
 function formatFecha(iso) {
@@ -16,6 +16,15 @@ export default function DetallePedido() {
 
   const [pedido, setPedido] = useState(() => getPedidoById(id));
   const [sfStatus, setSfStatus] = useState(null); // null | 'enviando' | {tipo:'ok'|'error', texto:string}
+
+  // Suscribirse a cambios de Firestore para actualizar el pedido si llega después
+  useEffect(() => {
+    iniciarListenerPedidos(() => {
+      const actualizado = getPedidoById(id);
+      if (actualizado) setPedido(actualizado);
+    });
+    return () => detenerListenerPedidos();
+  }, [id]);
 
   const yaEnviado = !!pedido?.enviadoSellforge;
 
