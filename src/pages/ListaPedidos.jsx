@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List, Pencil, KeyRound, X, Calendar } from 'lucide-react';
-import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
+import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore, iniciarListenerPedidos, detenerListenerPedidos } from '../services/pedidosService';
 import { getUsuario, logout, isSuperAdmin, getZonasUsuario, getAdministradores, crearAdministrador, editarAdministrador, eliminarAdministrador, sincronizarUsuariosDesdeFirestore, ZONAS } from '../services/authService';
 import { setProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
 import { parseTarifaExcel } from '../services/tarifaParser';
@@ -132,23 +132,23 @@ export default function ListaPedidos() {
     setVersion(v => v + 1);
   };
 
-  // Sincronizar desde Firestore al cargar la página y al recuperar el foco
+  // Sincronizar en tiempo real desde Firestore
   useEffect(() => {
-    const sync = () => {
-      sincronizarDesdeFirestore().then(ok => {
-        if (ok) setVersion(v => v + 1);
-      });
-      sincronizarUsuariosDesdeFirestore().then(() => {
-        setAdmins(getAdministradores());
-      });
-    };
-
-    sync();
+    // Sync inicial
+    sincronizarDesdeFirestore().then(ok => {
+      if (ok) setVersion(v => v + 1);
+    });
+    sincronizarUsuariosDesdeFirestore().then(() => {
+      setAdmins(getAdministradores());
+    });
     sincronizarTarifaDesdeFirestore();
 
-    const handleFocus = () => sync();
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    // Listener en tiempo real: actualiza automáticamente cuando cambia Firestore
+    iniciarListenerPedidos(() => {
+      setVersion(v => v + 1);
+    });
+
+    return () => detenerListenerPedidos();
   }, []);
 
   const handleEnviarEmail = async () => {
