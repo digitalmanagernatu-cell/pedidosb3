@@ -134,10 +134,8 @@ export default function ListaPedidos() {
 
   // Sincronizar en tiempo real desde Firestore
   useEffect(() => {
-    // Sync inicial
-    sincronizarDesdeFirestore().then(ok => {
-      if (ok) setVersion(v => v + 1);
-    });
+    // Sync inicial como fallback (si el listener falla por cuota, al menos tenemos datos)
+    sincronizarDesdeFirestore().catch(() => {});
     sincronizarUsuariosDesdeFirestore().then(() => {
       setAdmins(getAdministradores());
     });
