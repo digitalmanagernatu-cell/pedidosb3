@@ -5,7 +5,7 @@ import { getProductos, sincronizarTarifaDesdeFirestore } from '../services/produ
 import TablaProductos from '../components/TablaProductos';
 import ResumenPedido from '../components/ResumenPedido';
 import { calcularPrecioUnitario, calcularAhorro, calcularDescuento2x1, calcularTotalesPorCategoriaEscalado, determinarCategoriaEscalado, esCategoríaSinSurtido, esCategoríaFacial, getSubgrupoFacial } from '../services/preciosService';
-import { guardarPedido, actualizarPedido } from '../services/pedidosService';
+import { guardarPedido, actualizarPedido, sincronizarDesdeFirestore } from '../services/pedidosService';
 import { enviarPedidoSellforge } from '../services/sellforgeService';
 import { enviarPedidoEmail, isEmailConfigured } from '../services/emailService';
 import { CIUDADES_ZONAS } from '../services/authService';
@@ -84,16 +84,19 @@ export default function CrearPedido() {
   const [productos, setProductos] = useState(() => getProductos());
   const [codigoCliente, setCodigoCliente] = useState('');
 
-  // Sincronizar tarifa desde Firestore al cargar y cuando la ventana recupera el foco
+  // Sincronizar tarifa y pedidos desde Firestore al cargar y al recuperar foco
   useEffect(() => {
     sincronizarTarifaDesdeFirestore().then(actualizado => {
       if (actualizado) setProductos(getProductos());
     });
+    // Sincronizar pedidos: sube a Firestore los que solo existan en este navegador
+    sincronizarDesdeFirestore();
 
     const handleFocus = () => {
       sincronizarTarifaDesdeFirestore().then(actualizado => {
         if (actualizado) setProductos(getProductos());
       });
+      sincronizarDesdeFirestore();
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
