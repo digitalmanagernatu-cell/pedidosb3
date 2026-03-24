@@ -35,15 +35,11 @@ function setLocal(productos, timestamp) {
 
 async function firestoreGuardarTarifa(productos, timestamp) {
   if (!isFirebaseConfigured()) return;
-  try {
-    const db = getDb();
-    await setDoc(doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC), {
-      productos,
-      timestamp
-    });
-  } catch (e) {
-    console.error('Error guardando tarifa en Firestore:', e);
-  }
+  const db = getDb();
+  await setDoc(doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC), {
+    productos,
+    timestamp
+  });
 }
 
 // --- API pública ---
@@ -52,11 +48,14 @@ export async function setProductos(productos) {
   const timestamp = Date.now();
   setLocal(productos, timestamp);
   // Guardar en Firestore en background - si falla, la tarifa local sigue funcionando
+  let firestoreOk = false;
   try {
     await firestoreGuardarTarifa(productos, timestamp);
+    firestoreOk = true;
   } catch (e) {
-    console.warn('Tarifa guardada localmente. Error al sincronizar con Firestore:', e.message);
+    console.warn('Tarifa guardada localmente. Error Firestore:', e.message);
   }
+  return { firestoreOk };
 }
 
 export function resetProductos() {
