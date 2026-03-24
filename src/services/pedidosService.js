@@ -53,10 +53,12 @@ export function guardarPedido(pedido) {
   const nuevoPedido = {
     ...pedido,
     id: Date.now(),
-    fecha: new Date().toISOString()
+    fecha: new Date().toISOString(),
+    _updatedAt: Date.now()
   };
   pedidos.push(nuevoPedido);
   setLocal(pedidos);
+  // Guardar en Firestore en background (no bloquea la UI)
   firestoreGuardar(nuevoPedido);
   return nuevoPedido;
 }
@@ -65,8 +67,9 @@ export function actualizarPedido(id, cambios) {
   const pedidos = getLocal();
   const idx = pedidos.findIndex(p => p.id === Number(id));
   if (idx === -1) return null;
-  pedidos[idx] = { ...pedidos[idx], ...cambios };
+  pedidos[idx] = { ...pedidos[idx], ...cambios, _updatedAt: Date.now() };
   setLocal(pedidos);
+  // Guardar en Firestore en background
   firestoreGuardar(pedidos[idx]);
   return pedidos[idx];
 }
@@ -96,8 +99,10 @@ export function getEstadisticas() {
 }
 
 /**
- * Sincroniza pedidos desde Firestore a localStorage.
- * Llama a esta función al cargar la app o al pulsar "Refrescar".
+ * Sincroniza pedidos entre Firestore y localStorage (bidireccional).
+ * - Pedidos que solo existen en Firestore → se copian a local
+ * - Pedidos que solo existen en local → se suben a Firestore
+ * - Pedidos que existen en ambos → se queda la versión más reciente (_updatedAt)
  * Devuelve true si se sincronizó, false si Firebase no está configurado.
  */
 export async function sincronizarDesdeFirestore() {
@@ -110,19 +115,59 @@ export async function sincronizarDesdeFirestore() {
       pedidosFirestore.push(docSnap.data());
     });
 
-    // Merge: los de Firestore son la fuente de verdad,
-    // pero conservamos pedidos locales que no estén en Firestore (por si se crearon offline)
     const locales = getLocal();
-    const idsFirestore = new Set(pedidosFirestore.map(p => p.id));
-    const soloLocales = locales.filter(p => !idsFirestore.has(p.id));
 
-    // Subir los pedidos locales que no están en Firestore
-    for (const pedido of soloLocales) {
+    // Indexar por ID para merge inteligente
+    const mapFirestore = new Map();
+    pedidosFirestore.forEach(p => mapFirestore.set(Number(p.id), p));
+
+    const mapLocal = new Map();
+    locales.forEach(p => mapLocal.set(Number(p.id), p));
+
+    // Recoger todos los IDs únicos
+    const todosIds = new Set([...mapFirestore.keys(), ...mapLocal.keys()]);
+    const merged = [];
+    const pendientesSubir = [];
+
+    for (const id of todosIds) {
+      const enFirestore = mapFirestore.get(id);
+      const enLocal = mapLocal.get(id);
+
+      if (enFirestore && !enLocal) {
+        // Solo en Firestore → copiar a local
+        merged.push(enFirestore);
+      } else if (!enFirestore && enLocal) {
+        // Solo en local → subir a Firestore
+        merged.push(enLocal);
+        pendientesSubir.push(enLocal);
+      } else {
+        // En ambos → quedarse con la versión más completa/reciente
+        const tsFirestore = enFirestore._updatedAt || new Date(enFirestore.fecha).getTime() || 0;
+        const tsLocal = enLocal._updatedAt || new Date(enLocal.fecha).getTime() || 0;
+
+        if (tsLocal > tsFirestore) {
+          // Local es más reciente → usar local y subir a Firestore
+          merged.push(enLocal);
+          pendientesSubir.push(enLocal);
+        } else if (tsFirestore > tsLocal) {
+          // Firestore es más reciente → usar Firestore
+          merged.push(enFirestore);
+        } else {
+          // Mismo timestamp → merge de campos (Firestore base + campos extra de local)
+          const combinado = { ...enFirestore, ...enLocal, _updatedAt: Date.now() };
+          merged.push(combinado);
+          pendientesSubir.push(combinado);
+        }
+      }
+    }
+
+    setLocal(merged);
+
+    // Subir pedidos pendientes a Firestore
+    for (const pedido of pendientesSubir) {
       await firestoreGuardar(pedido);
     }
 
-    const merged = [...pedidosFirestore, ...soloLocales];
-    setLocal(merged);
     return true;
   } catch (e) {
     console.error('Error sincronizando desde Firestore:', e);

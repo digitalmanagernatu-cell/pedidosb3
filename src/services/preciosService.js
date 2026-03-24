@@ -62,7 +62,7 @@ const CATEGORIAS_CAJAS_COMPLETAS = [
   'FACIAL', 'CHAMPÚ', 'CHAMPUS', 'JABONES', 'GELES',
   'HAIR & BODY MIST', 'BODY MIST',
   'BRUMA MASCOTAS', 'AMBIENTACION', 'AMBIENTACIÓN',
-  'PACK CHERRY', 'AGUA COLONIA',
+  'PACK', 'COLONIA',
 ];
 
 export function esCategoríaCajasCompletas(categoria) {
