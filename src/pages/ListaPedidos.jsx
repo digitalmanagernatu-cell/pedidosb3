@@ -132,15 +132,23 @@ export default function ListaPedidos() {
     setVersion(v => v + 1);
   };
 
-  // Sincronizar desde Firestore al cargar la página
+  // Sincronizar desde Firestore al cargar la página y al recuperar el foco
   useEffect(() => {
-    sincronizarDesdeFirestore().then(ok => {
-      if (ok) setVersion(v => v + 1);
-    });
+    const sync = () => {
+      sincronizarDesdeFirestore().then(ok => {
+        if (ok) setVersion(v => v + 1);
+      });
+      sincronizarUsuariosDesdeFirestore().then(() => {
+        setAdmins(getAdministradores());
+      });
+    };
+
+    sync();
     sincronizarTarifaDesdeFirestore();
-    sincronizarUsuariosDesdeFirestore().then(() => {
-      setAdmins(getAdministradores());
-    });
+
+    const handleFocus = () => sync();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const handleEnviarEmail = async () => {
