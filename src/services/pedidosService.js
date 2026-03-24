@@ -44,7 +44,9 @@ async function firestoreGuardar(pedido) {
   if (!isFirebaseConfigured()) return;
   try {
     const db = getDb();
-    await setDoc(doc(db, COLLECTION, String(pedido.id)), pedido);
+    // No guardar _localOnly en Firestore (es solo para control local)
+    const { _localOnly, ...cleanPedido } = pedido;
+    await setDoc(doc(db, COLLECTION, String(pedido.id)), cleanPedido);
   } catch (e) {
     console.error('Error guardando en Firestore:', e);
   }
@@ -77,7 +79,8 @@ export function guardarPedido(pedido) {
     ...pedido,
     id: Date.now(),
     fecha: new Date().toISOString(),
-    _updatedAt: Date.now()
+    _updatedAt: Date.now(),
+    _localOnly: true  // Marca: aún no confirmado en Firestore
   };
   pedidos.push(nuevoPedido);
   setLocal(pedidos);
@@ -131,7 +134,12 @@ export function getEstadisticas() {
 
 /**
  * Merge inteligente entre pedidos de Firestore y localStorage.
- * Respeta la lista de eliminados para no re-agregar pedidos borrados.
+ * Reglas:
+ *  - Eliminado localmente (deletedIds) → no re-agregar
+ *  - Solo en Firestore → agregar a local
+ *  - Solo en local CON _localOnly → es nuevo, subir a Firestore
+ *  - Solo en local SIN _localOnly → fue eliminado remotamente, eliminar de local
+ *  - En ambos → tomar el más reciente, quitar _localOnly
  */
 function mergePedidos(pedidosFirestore, locales) {
   const deletedIds = getDeletedIds();
@@ -147,35 +155,36 @@ function mergePedidos(pedidosFirestore, locales) {
   const pendientesSubir = [];
 
   for (const id of todosIds) {
-    // Si fue eliminado localmente, no re-agregar
     if (deletedIds.includes(id)) continue;
 
     const enFirestore = mapFirestore.get(id);
     const enLocal = mapLocal.get(id);
 
     if (enFirestore && !enLocal) {
-      merged.push(enFirestore);
+      // Solo en Firestore → agregar a local (sin _localOnly, ya está confirmado)
+      const { _localOnly, ...clean } = enFirestore;
+      merged.push(clean);
     } else if (!enFirestore && enLocal) {
-      // Solo existe en local → subir a Firestore (si no lo acabamos de escribir)
-      merged.push(enLocal);
-      if (!_recentlyWrittenIds.has(id)) {
-        pendientesSubir.push(enLocal);
+      if (enLocal._localOnly) {
+        // Pedido creado localmente, aún no confirmado en Firestore → subir
+        merged.push(enLocal);
+        if (!_recentlyWrittenIds.has(id)) {
+          pendientesSubir.push(enLocal);
+        }
       }
+      // Si NO tiene _localOnly → fue eliminado de Firestore → no incluir (se pierde de local)
     } else {
-      // Existe en ambos → tomar el más reciente
+      // Existe en ambos → tomar el más reciente, quitar _localOnly
       const tsFirestore = enFirestore._updatedAt || new Date(enFirestore.fecha).getTime() || 0;
       const tsLocal = enLocal._updatedAt || new Date(enLocal.fecha).getTime() || 0;
 
       if (tsLocal > tsFirestore && !_recentlyWrittenIds.has(id)) {
-        // Local es más reciente y no lo acabamos de escribir → subir
-        merged.push(enLocal);
-        pendientesSubir.push(enLocal);
-      } else if (tsFirestore > tsLocal) {
-        // Firestore es más reciente → actualizar local
-        merged.push(enFirestore);
+        const { _localOnly, ...clean } = enLocal;
+        merged.push(clean);
+        pendientesSubir.push(clean);
       } else {
-        // Timestamps iguales o lo acabamos de escribir → están sincronizados, no hacer nada
-        merged.push(enFirestore);
+        const { _localOnly, ...clean } = enFirestore;
+        merged.push(clean);
       }
     }
   }
