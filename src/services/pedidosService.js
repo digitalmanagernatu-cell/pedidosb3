@@ -9,6 +9,9 @@ const COLLECTION = 'pedidos';
 let _onSnapshotUnsub = null;
 let _onChangeCallback = null;
 
+// IDs de pedidos que acabamos de escribir nosotros (para evitar re-subir en el snapshot)
+const _recentlyWrittenIds = new Set();
+
 // --- localStorage (siempre disponible) ---
 
 function getLocal() {
@@ -78,7 +81,9 @@ export function guardarPedido(pedido) {
   };
   pedidos.push(nuevoPedido);
   setLocal(pedidos);
-  // Guardar en Firestore en background (no bloquea la UI)
+  // Marcar como escrito por nosotros para que el snapshot no lo re-suba
+  _recentlyWrittenIds.add(Number(nuevoPedido.id));
+  setTimeout(() => _recentlyWrittenIds.delete(Number(nuevoPedido.id)), 5000);
   firestoreGuardar(nuevoPedido);
   return nuevoPedido;
 }
@@ -89,7 +94,9 @@ export function actualizarPedido(id, cambios) {
   if (idx === -1) return null;
   pedidos[idx] = { ...pedidos[idx], ...cambios, _updatedAt: Date.now() };
   setLocal(pedidos);
-  // Guardar en Firestore en background
+  // Marcar como escrito por nosotros
+  _recentlyWrittenIds.add(Number(id));
+  setTimeout(() => _recentlyWrittenIds.delete(Number(id)), 5000);
   firestoreGuardar(pedidos[idx]);
   return pedidos[idx];
 }
@@ -146,21 +153,26 @@ function mergePedidos(pedidosFirestore, locales) {
     if (enFirestore && !enLocal) {
       merged.push(enFirestore);
     } else if (!enFirestore && enLocal) {
+      // Solo existe en local → subir a Firestore (si no lo acabamos de escribir)
       merged.push(enLocal);
-      pendientesSubir.push(enLocal);
+      if (!_recentlyWrittenIds.has(id)) {
+        pendientesSubir.push(enLocal);
+      }
     } else {
+      // Existe en ambos → tomar el más reciente
       const tsFirestore = enFirestore._updatedAt || new Date(enFirestore.fecha).getTime() || 0;
       const tsLocal = enLocal._updatedAt || new Date(enLocal.fecha).getTime() || 0;
 
-      if (tsLocal > tsFirestore) {
+      if (tsLocal > tsFirestore && !_recentlyWrittenIds.has(id)) {
+        // Local es más reciente y no lo acabamos de escribir → subir
         merged.push(enLocal);
         pendientesSubir.push(enLocal);
       } else if (tsFirestore > tsLocal) {
+        // Firestore es más reciente → actualizar local
         merged.push(enFirestore);
       } else {
-        const combinado = { ...enFirestore, ...enLocal, _updatedAt: Date.now() };
-        merged.push(combinado);
-        pendientesSubir.push(combinado);
+        // Timestamps iguales o lo acabamos de escribir → están sincronizados, no hacer nada
+        merged.push(enFirestore);
       }
     }
   }
@@ -231,14 +243,18 @@ export function iniciarListenerPedidos(onChange) {
 
       setLocal(merged);
 
-      // Subir pendientes en background
+      // Subir pedidos que solo existen en local (el merge ya filtra los recién escritos)
       for (const pedido of pendientesSubir) {
+        _recentlyWrittenIds.add(Number(pedido.id));
+        setTimeout(() => _recentlyWrittenIds.delete(Number(pedido.id)), 5000);
         firestoreGuardar(pedido);
       }
 
       if (_onChangeCallback) _onChangeCallback();
     }, (error) => {
       console.error('Error en listener de Firestore:', error);
+      // Aún así notificar para que la UI se actualice con datos locales
+      if (_onChangeCallback) _onChangeCallback();
     });
   } catch (e) {
     console.error('Error iniciando listener:', e);

@@ -51,7 +51,12 @@ async function firestoreGuardarTarifa(productos, timestamp) {
 export async function setProductos(productos) {
   const timestamp = Date.now();
   setLocal(productos, timestamp);
-  await firestoreGuardarTarifa(productos, timestamp);
+  // Guardar en Firestore en background - si falla, la tarifa local sigue funcionando
+  try {
+    await firestoreGuardarTarifa(productos, timestamp);
+  } catch (e) {
+    console.warn('Tarifa guardada localmente. Error al sincronizar con Firestore:', e.message);
+  }
 }
 
 export function resetProductos() {
