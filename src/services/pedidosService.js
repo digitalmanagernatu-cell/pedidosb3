@@ -105,6 +105,9 @@ export function eliminarPedido(id) {
   const pedidos = getLocal().filter(p => p.id !== Number(id));
   setLocal(pedidos);
   addDeletedId(id);
+  // Marcar como escrito para que el snapshot no intente re-procesar
+  _recentlyWrittenIds.add(Number(id));
+  setTimeout(() => _recentlyWrittenIds.delete(Number(id)), 5000);
   firestoreEliminar(id);
 }
 
@@ -232,7 +235,22 @@ export function iniciarListenerPedidos(onChange) {
 
   try {
     const db = getDb();
+    let _firstSnapshot = true;
     _onSnapshotUnsub = onSnapshot(collection(db, COLLECTION), (snapshot) => {
+      // Detectar eliminaciones remotas (docs borrados en otro navegador)
+      if (!_firstSnapshot) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'removed') {
+            const removedId = Number(change.doc.id);
+            // Eliminar de localStorage sin re-borrar de Firestore
+            const current = getLocal().filter(p => p.id !== removedId);
+            setLocal(current);
+            addDeletedId(removedId);
+          }
+        });
+      }
+      _firstSnapshot = false;
+
       const pedidosFirestore = [];
       snapshot.forEach(docSnap => {
         pedidosFirestore.push(docSnap.data());
