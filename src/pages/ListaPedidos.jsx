@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List, Pencil, KeyRound, X, Calendar } from 'lucide-react';
+import { LogOut, Eye, Search, Trash2, Upload, Mail, RefreshCw, CheckCircle, UserPlus, Users, Shield, List, Pencil, KeyRound, X, Calendar, BarChart2 } from 'lucide-react';
 import { getPedidos, getEstadisticas, eliminarPedido, sincronizarDesdeFirestore, iniciarListenerPedidos, detenerListenerPedidos } from '../services/pedidosService';
 import { getUsuario, logout, isSuperAdmin, getZonasUsuario, getAdministradores, crearAdministrador, editarAdministrador, eliminarAdministrador, sincronizarUsuariosDesdeFirestore, ZONAS } from '../services/authService';
 import { setProductos, sincronizarTarifaDesdeFirestore } from '../services/productosService';
@@ -352,6 +352,19 @@ export default function ListaPedidos() {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <EstadisticasAdmin stats={stats} />
+
+        {/* Estadísticas de productos — solo super admins */}
+        {esSuperAdmin && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => navigate('/admin/estadisticas')}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer shadow-sm"
+            >
+              <BarChart2 className="w-4 h-4" />
+              Estadísticas de productos
+            </button>
+          </div>
+        )}
 
         {/* Gestión de usuarios + Gestión de tarifa — solo super admins, en la misma línea */}
         {esSuperAdmin && (

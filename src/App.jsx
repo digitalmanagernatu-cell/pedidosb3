@@ -3,6 +3,7 @@ import CrearPedido from './pages/CrearPedido';
 import Login from './pages/Login';
 import ListaPedidos from './pages/ListaPedidos';
 import DetallePedido from './pages/DetallePedido';
+import EstadisticasProductos from './pages/EstadisticasProductos';
 import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/admin" element={<ProtectedRoute><ListaPedidos /></ProtectedRoute>} />
         <Route path="/admin/pedido/:id" element={<ProtectedRoute><DetallePedido /></ProtectedRoute>} />
+        <Route path="/admin/estadisticas" element={<ProtectedRoute><EstadisticasProductos /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );
