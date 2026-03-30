@@ -167,14 +167,8 @@ export default function EstadisticasProductos() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {/* Título imprimible */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 print-title" style={{ display: 'none' }}>
-            Betrés ON — Estadísticas de Productos
-          </h1>
-          <div className="flex items-center justify-between no-print">
-            <h1 className="text-xl font-bold text-gray-900">Estadísticas de Productos</h1>
-          </div>
+        <div className="no-print mb-6">
+          <h1 className="text-xl font-bold text-gray-900">Estadísticas de Productos</h1>
         </div>
 
         {/* Filtros de fecha */}
@@ -214,7 +208,9 @@ export default function EstadisticasProductos() {
           )}
         </div>
 
-        {/* Tabla */}
+        {/* Tabla — print-area para que el CSS global la haga visible al imprimir */}
+        <div className="print-area">
+        <h1 className="text-xl font-bold text-gray-900 mb-4 no-screen" style={{display:'none'}}>Betrés ON — Estadísticas de Productos</h1>
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {filas.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
@@ -267,6 +263,8 @@ export default function EstadisticasProductos() {
             </table>
           )}
         </div>
+
+        </div>{/* /print-area */}
 
         {/* Acciones inferiores */}
         {filas.length > 0 && (
@@ -351,13 +349,9 @@ export default function EstadisticasProductos() {
         </div>
       )}
 
-      {/* Estilos de impresión */}
       <style>{`
         @media print {
-          .no-print { display: none !important; }
-          body { background: white; }
-          .print-title { display: block !important; }
-          header { display: none !important; }
+          .no-screen { display: block !important; }
         }
       `}</style>
     </div>
