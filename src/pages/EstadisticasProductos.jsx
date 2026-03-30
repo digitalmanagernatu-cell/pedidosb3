@@ -13,6 +13,12 @@ function calcularEstadisticas(pedidos) {
   const mapa = new Map();
   for (const pedido of pedidos) {
     if (!pedido.lineas) continue;
+    // Factor para que el importe por producto incluya IVA y descuentos proporcionales,
+    // de forma que la suma total coincida con pedido.totales.total (= total facturado)
+    const sumaLineas = pedido.lineas.reduce((s, l) => s + (l.subtotal || 0), 0);
+    const totalReal = pedido.totales?.total || 0;
+    const factor = sumaLineas > 0 ? totalReal / sumaLineas : 1;
+
     for (const linea of pedido.lineas) {
       const key = linea.codigo;
       if (!mapa.has(key)) {
@@ -25,7 +31,7 @@ function calcularEstadisticas(pedidos) {
       }
       const entry = mapa.get(key);
       entry.unidades += linea.cantidad;
-      entry.importe += linea.subtotal;
+      entry.importe += (linea.subtotal || 0) * factor;
     }
   }
   return Array.from(mapa.values()).sort((a, b) => b.importe - a.importe);
