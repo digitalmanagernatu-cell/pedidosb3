@@ -77,6 +77,8 @@ export default function EstadisticasProductos() {
   const navigate = useNavigate();
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
+  const [sortCol, setSortCol] = useState('importe');   // 'importe' | 'unidades'
+  const [sortDir, setSortDir] = useState('desc');       // 'asc' | 'desc'
   const [emailModal, setEmailModal] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [emailStatus, setEmailStatus] = useState(null);
@@ -92,9 +94,20 @@ export default function EstadisticasProductos() {
     return todos;
   }, [fechaDesde, fechaHasta]);
 
-  const filas = useMemo(() => calcularEstadisticas(pedidosFiltrados), [pedidosFiltrados]);
+  const filas = useMemo(() => {
+    const base = calcularEstadisticas(pedidosFiltrados);
+    return [...base].sort((a, b) => {
+      const diff = a[sortCol] - b[sortCol];
+      return sortDir === 'desc' ? -diff : diff;
+    });
+  }, [pedidosFiltrados, sortCol, sortDir]);
   const totalUnidades = filas.reduce((s, f) => s + f.unidades, 0);
   const totalImporte = filas.reduce((s, f) => s + f.importe, 0);
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+    else { setSortCol(col); setSortDir('desc'); }
+  };
 
   const handlePDF = () => window.print();
 
@@ -214,8 +227,24 @@ export default function EstadisticasProductos() {
                 <tr className="bg-gray-50 border-b border-gray-200 text-left">
                   <th className="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Código</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Producto</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide text-center">Uds. totales</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide text-right">Importe total</th>
+                  <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide text-center">
+                    <button onClick={() => handleSort('unidades')} className="inline-flex items-center gap-1 cursor-pointer hover:text-gray-900 transition-colors" style={{color: sortCol==='unidades'?'#1d4ed8':'#4b5563'}}>
+                      Uds. totales
+                      <span className="flex flex-col leading-none">
+                        <span style={{opacity: sortCol==='unidades' && sortDir==='asc' ? 1 : 0.3, fontSize:'9px', lineHeight:'1'}}>▲</span>
+                        <span style={{opacity: sortCol==='unidades' && sortDir==='desc' ? 1 : 0.3, fontSize:'9px', lineHeight:'1'}}>▼</span>
+                      </span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide text-right">
+                    <button onClick={() => handleSort('importe')} className="inline-flex items-center gap-1 cursor-pointer hover:text-gray-900 transition-colors ml-auto" style={{color: sortCol==='importe'?'#1d4ed8':'#4b5563'}}>
+                      Importe total
+                      <span className="flex flex-col leading-none">
+                        <span style={{opacity: sortCol==='importe' && sortDir==='asc' ? 1 : 0.3, fontSize:'9px', lineHeight:'1'}}>▲</span>
+                        <span style={{opacity: sortCol==='importe' && sortDir==='desc' ? 1 : 0.3, fontSize:'9px', lineHeight:'1'}}>▼</span>
+                      </span>
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
